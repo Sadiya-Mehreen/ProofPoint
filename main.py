@@ -1,9 +1,10 @@
 """
 ProofPoint FastAPI application.
 
-CrewAI + Groq compatibility patch:
-prevents CrewAI from sending cache_breakpoint
-to Groq, which currently rejects that property.
+CrewAI + Groq compatibility patches.
+
+Groq rejects the `cache_breakpoint` property that CrewAI
+1.15.17 adds to messages.
 """
 
 from dotenv import load_dotenv
@@ -12,40 +13,88 @@ load_dotenv()
 
 
 # ============================================================
-# CREWAI + GROQ CACHE BREAKPOINT PATCH
+# CREWAI CACHE PATCH
 # ============================================================
 
 import crewai.llms.cache as crewai_cache
 
 
-def _disable_cache_breakpoint(message):
-    return message
+def _no_cache_breakpoint(message):
+    """Return the message without adding CrewAI's cache flag."""
+    if not isinstance(message, dict):
+        return message
+
+    cleaned = dict(message)
+    cleaned.pop("cache_breakpoint", None)
+
+    content = cleaned.get("content")
+
+    if isinstance(content, list):
+        cleaned["content"] = [
+            (
+                {k: v for k, v in block.items() if k != "cache_breakpoint"}
+                if isinstance(block, dict)
+                else block
+            )
+            for block in content
+        ]
+
+    return cleaned
 
 
-# Patch the original cache module.
-crewai_cache.mark_cache_breakpoint = _disable_cache_breakpoint
+crewai_cache.mark_cache_breakpoint = _no_cache_breakpoint
 
 
-# CrewAI may import the function directly into another module.
-# Patch those references too.
-try:
-    import crewai.experimental.agent_executor as agent_executor
+# ============================================================
+# LITELLM PATCH
+# ============================================================
 
-    if hasattr(agent_executor, "mark_cache_breakpoint"):
-        agent_executor.mark_cache_breakpoint = _disable_cache_breakpoint
+import litellm
 
-except ImportError:
-    pass
+_real_completion = litellm.completion
 
 
-try:
-    import crewai.agent.core as agent_core
+def _completion_without_cache_breakpoint(*args, **kwargs):
+    """Remove cache_breakpoint immediately before the API call."""
 
-    if hasattr(agent_core, "mark_cache_breakpoint"):
-        agent_core.mark_cache_breakpoint = _disable_cache_breakpoint
+    messages = kwargs.get("messages")
 
-except ImportError:
-    pass
+    if isinstance(messages, list):
+        cleaned_messages = []
+
+        for message in messages:
+
+            if isinstance(message, dict):
+
+                message = dict(message)
+
+                message.pop("cache_breakpoint", None)
+
+                content = message.get("content")
+
+                if isinstance(content, list):
+                    cleaned_content = []
+
+                    for block in content:
+                        if isinstance(block, dict):
+                            block = dict(block)
+                            block.pop("cache_breakpoint", None)
+
+                        cleaned_content.append(block)
+
+                    message["content"] = cleaned_content
+
+            cleaned_messages.append(message)
+
+        kwargs["messages"] = cleaned_messages
+
+    # Disable LiteLLM caching.
+    kwargs["caching"] = False
+
+    return _real_completion(*args, **kwargs)
+
+
+litellm.completion = _completion_without_cache_breakpoint
 
 
 # ============================================================
@@ -71,7 +120,7 @@ app.include_router(router)
 
 
 # ============================================================
-# HEALTH CHECK
+# HEALTH
 # ============================================================
 
 @app.get("/health")
