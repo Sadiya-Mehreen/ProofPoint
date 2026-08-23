@@ -1,31 +1,56 @@
 """
-ProofPoint FastAPI application entry point.
+ProofPoint FastAPI application.
 
-Compatibility patch for CrewAI + Groq:
-CrewAI currently injects cache_breakpoint into messages for some
-non-Anthropic providers, while Groq rejects that property.
+CrewAI + Groq compatibility patch:
+prevents CrewAI from sending cache_breakpoint
+to Groq, which currently rejects that property.
 """
 
 from dotenv import load_dotenv
 
-# Load .env first
 load_dotenv()
 
-# ---------------------------------------------------------
-# CrewAI + Groq cache_breakpoint workaround
-# ---------------------------------------------------------
 
-import crewai.llms.cache as _crewai_cache
+# ============================================================
+# CREWAI + GROQ CACHE BREAKPOINT PATCH
+# ============================================================
 
-# CrewAI's agent executor imports/uses this function.
-# Returning the message unchanged prevents CrewAI from
-# injecting `cache_breakpoint`.
-_crewai_cache.mark_cache_breakpoint = lambda msg: msg
+import crewai.llms.cache as crewai_cache
 
 
-# ---------------------------------------------------------
-# FastAPI
-# ---------------------------------------------------------
+def _disable_cache_breakpoint(message):
+    return message
+
+
+# Patch the original cache module.
+crewai_cache.mark_cache_breakpoint = _disable_cache_breakpoint
+
+
+# CrewAI may import the function directly into another module.
+# Patch those references too.
+try:
+    import crewai.experimental.agent_executor as agent_executor
+
+    if hasattr(agent_executor, "mark_cache_breakpoint"):
+        agent_executor.mark_cache_breakpoint = _disable_cache_breakpoint
+
+except ImportError:
+    pass
+
+
+try:
+    import crewai.agent.core as agent_core
+
+    if hasattr(agent_core, "mark_cache_breakpoint"):
+        agent_core.mark_cache_breakpoint = _disable_cache_breakpoint
+
+except ImportError:
+    pass
+
+
+# ============================================================
+# FASTAPI
+# ============================================================
 
 from fastapi import FastAPI
 
@@ -44,6 +69,10 @@ app = FastAPI(
 
 app.include_router(router)
 
+
+# ============================================================
+# HEALTH CHECK
+# ============================================================
 
 @app.get("/health")
 def health():
