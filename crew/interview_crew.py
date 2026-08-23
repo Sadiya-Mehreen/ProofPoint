@@ -1,10 +1,13 @@
 """Builds and runs the CrewAI panel for a subset of agents against a CandidateContext."""
 
+import crewai.llms.cache as _crewai_cache
+
+_crewai_cache.mark_cache_breakpoint = lambda msg: msg
+
 import json
 import logging
 
 from crewai import Crew, Process
-
 from crew.tasks import AGENTS, TASK_BUILDERS, build_final_judge_task, build_judge_task
 from models.candidate_context import CandidateContext
 
