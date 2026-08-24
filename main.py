@@ -58,7 +58,6 @@ _real_completion = litellm.completion
 
 
 def _completion_without_cache_breakpoint(*args, **kwargs):
-
     messages = kwargs.get("messages")
 
     if isinstance(messages, list):
@@ -82,6 +81,14 @@ litellm.completion = _completion_without_cache_breakpoint
 # ============================================================
 
 from fastapi import FastAPI
+
+import sys
+import os
+
+# Add the backend directory to Python's import path.
+# This allows backend/api/routes.py to continue using imports
+# such as: from crew..., from models..., from services...
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "backend"))
 
 from api.routes import router
 
