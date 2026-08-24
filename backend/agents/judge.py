@@ -13,5 +13,5 @@ judge = Agent(
         "consistency across all four perspectives to reach one clear, "
         "defensible conclusion."
     ),
-    llm="groq/llama-3.3-70b-versatile",
+    llm="groq/openai/gpt-oss-120b",
 )

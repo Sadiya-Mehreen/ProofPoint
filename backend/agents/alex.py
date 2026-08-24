@@ -15,5 +15,5 @@ alex = Agent(
         "against the commits, the repo size, and the real contribution history "
         "behind it."
     ),
-    llm="groq/llama-3.3-70b-versatile",
+    llm="groq/openai/gpt-oss-120b",
 )

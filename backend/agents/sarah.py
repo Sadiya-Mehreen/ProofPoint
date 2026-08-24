@@ -13,5 +13,5 @@ sarah = Agent(
         "alignment' hiding an empty answer from a mile away. She listens for "
         "what's actually being said underneath the polish."
     ),
-    llm="groq/llama-3.3-70b-versatile",
+    llm="groq/openai/gpt-oss-120b",
 )

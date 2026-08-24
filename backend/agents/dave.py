@@ -14,5 +14,5 @@ dave = Agent(
         "buzzwords for the specifics only someone who actually did the work "
         "would know."
     ),
-    llm="groq/llama-3.3-70b-versatile",
+    llm="groq/openai/gpt-oss-120b",
 )
