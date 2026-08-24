@@ -1,4 +1,3 @@
-```python
 import os
 import sys
 
@@ -145,4 +144,3 @@ app.include_router(router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
-```
