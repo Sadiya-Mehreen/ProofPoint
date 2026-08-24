@@ -1,3 +1,4 @@
+```python
 import os
 import sys
 
@@ -5,18 +6,26 @@ import litellm
 from dotenv import load_dotenv
 
 # ============================================================
-# PATH SETUP
+# ENVIRONMENT
 # ============================================================
+
+load_dotenv()
+
+# ============================================================
+# BACKEND IMPORT PATH
+# ============================================================
+# The actual API code is inside:
+# backend/api/routes.py
+#
+# routes.py internally imports:
+# crew, models, services
+# so we also add backend/ to sys.path.
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.join(BASE_DIR, "backend")
 
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
-
-# Load environment variables before importing the application.
-load_dotenv()
-
 
 # ============================================================
 # FIX: CrewAI adds "cache_breakpoint" to messages.
@@ -42,9 +51,12 @@ def _remove_cache_breakpoint(message):
 # PATCH CREWAI CACHE MARKER
 # ============================================================
 
-import crewai.llms.cache as crewai_cache
+try:
+    import crewai.llms.cache as crewai_cache
 
-crewai_cache.mark_cache_breakpoint = _remove_cache_breakpoint
+    crewai_cache.mark_cache_breakpoint = _remove_cache_breakpoint
+except Exception:
+    pass
 
 
 # ============================================================
@@ -56,13 +68,12 @@ try:
 
     if hasattr(crew_agent_executor, "mark_cache_breakpoint"):
         crew_agent_executor.mark_cache_breakpoint = _remove_cache_breakpoint
-
 except Exception:
     pass
 
 
 # ============================================================
-# PATCH CREWAI EXPERIMENTAL EXECUTOR
+# PATCH EXPERIMENTAL AGENT EXECUTOR
 # ============================================================
 
 try:
@@ -70,19 +81,19 @@ try:
 
     if hasattr(experimental_agent_executor, "mark_cache_breakpoint"):
         experimental_agent_executor.mark_cache_breakpoint = _remove_cache_breakpoint
-
 except Exception:
     pass
 
 
 # ============================================================
-# LITELLM SAFETY NET
+# FINAL LITELLM SAFETY NET
 # ============================================================
 
 _real_completion = litellm.completion
 
 
 def _completion_without_cache_breakpoint(*args, **kwargs):
+    """Remove unsupported CrewAI cache fields before Groq requests."""
 
     messages = kwargs.get("messages")
 
@@ -90,7 +101,7 @@ def _completion_without_cache_breakpoint(*args, **kwargs):
         for message in messages:
             _remove_cache_breakpoint(message)
 
-    # Remove unsupported cache parameter.
+    # Remove cache-related parameter if present.
     kwargs.pop("cache_breakpoint", None)
 
     # ProofPoint does not need LiteLLM caching.
@@ -109,14 +120,13 @@ litellm.completion = _completion_without_cache_breakpoint
 from fastapi import FastAPI
 
 # IMPORTANT:
-# backend is already added to sys.path above.
-# Therefore these imports resolve to:
-# backend/api
-# backend/crew
-# backend/models
-# backend/services
+# The actual routes.py is located at:
+# backend/api/routes.py
+#
+# backend/ is already added to sys.path above, so the imports
+# inside routes.py such as "from crew..." continue to work.
 
-from api.routes import router
+from backend.api.routes import router
 
 
 app = FastAPI(
@@ -135,3 +145,4 @@ app.include_router(router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+```
