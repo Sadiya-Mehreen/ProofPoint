@@ -1,0 +1,213 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: sessions
+    description: Interview session operations
+  - name: candidate
+    description: Candidate setup and evidence
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /session/start:
+    post:
+      operationId: startSession
+      tags: [sessions]
+      summary: Start a live interview session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionStartInput"
+      responses:
+        "200":
+          description: Session started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+  /session/{sessionId}/end:
+    post:
+      operationId: endSession
+      tags: [sessions]
+      summary: End a live interview and generate scorecard
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Final scorecard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scorecard"
+  /resume/upload:
+    post:
+      operationId: uploadResume
+      tags: [candidate]
+      summary: Upload and parse a candidate resume
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResumeUploadInput"
+      responses:
+        "200":
+          description: Parsed candidate profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateProfile"
+  /github/{username}:
+    get:
+      operationId: getGithubFootprint
+      tags: [candidate]
+      summary: Analyze a public GitHub footprint
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: GitHub evidence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GithubFootprint"
+components:
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    SessionStartInput:
+      type: object
+      required: [candidateName, targetRole]
+      properties:
+        candidateName:
+          type: string
+        targetRole:
+          type: string
+        githubUsername:
+          type: ["string", "null"]
+        resumeName:
+          type: ["string", "null"]
+    Session:
+      type: object
+      required: [sessionId, status, openingPrompt, agents]
+      properties:
+        sessionId:
+          type: string
+        status:
+          type: string
+        openingPrompt:
+          type: string
+        agents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Agent"
+    Agent:
+      type: object
+      required: [name, role, color, status]
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+        color:
+          type: string
+        status:
+          type: string
+    Scorecard:
+      type: object
+      required: [overallScore, summary, dimensions, evidence]
+      properties:
+        overallScore:
+          type: number
+        summary:
+          type: string
+        dimensions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreDimension"
+        evidence:
+          type: array
+          items:
+            type: string
+    ScoreDimension:
+      type: object
+      required: [label, score, note]
+      properties:
+        label:
+          type: string
+        score:
+          type: number
+        note:
+          type: string
+    CandidateProfile:
+      type: object
+      required: [name, headline, skills, experience]
+      properties:
+        name:
+          type: string
+        headline:
+          type: string
+        skills:
+          type: array
+          items:
+            type: string
+        experience:
+          type: string
+    GithubFootprint:
+      type: object
+      required: [username, repositories, topLanguages, summary]
+      properties:
+        username:
+          type: string
+        repositories:
+          type: number
+        topLanguages:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+    ResumeUploadInput:
+      type: object
+      required: [fileName]
+      properties:
+        fileName:
+          type: string
+
