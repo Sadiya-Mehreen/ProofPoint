@@ -21,6 +21,17 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
+// The Python backend has no concept of users -- its session store is keyed
+// only by an opaque session_id. This map ties each session back to the
+// signed-in user who started it, so one account can't read or end another
+// account's session just by guessing/observing its id. It lives only as long
+// as the process, same as the Python backend's in-memory SessionManager.
+const sessionOwners = new Map<string, string>();
+
+function ownsSession(sessionId: string, userId: string): boolean {
+  return sessionOwners.get(sessionId) === userId;
+}
+
 const agents = [
   { name: "Alex", role: "Communication", color: "#8b5cf6", status: "listening" },
   { name: "Dave", role: "Technical depth", color: "#2dd4bf", status: "ready" },
@@ -117,6 +128,8 @@ router.post("/session/start", async (req, res) => {
       return;
     }
 
+    sessionOwners.set(sessionId, req.user!.id);
+
     res.json({
       sessionId,
       status: "live",
@@ -134,12 +147,17 @@ router.post("/session/:sessionId/end", async (req, res) => {
     res.status(400).json({ error: "A valid session is required." });
     return;
   }
+  if (!ownsSession(input.data.sessionId, req.user!.id)) {
+    res.status(404).json({ error: "This session was not found or has already ended." });
+    return;
+  }
 
   try {
     const backendResponse = asRecord(
       await backendPostEmpty(`/session/${encodeURIComponent(input.data.sessionId)}/end`),
     );
     const scorecard = asRecord(backendResponse["scorecard"]);
+    sessionOwners.delete(input.data.sessionId);
 
     res.json({
       sessionId: asString(backendResponse["session_id"], input.data.sessionId),
@@ -172,12 +190,16 @@ router.post("/resume/upload", upload.single("file"), async (req, res) => {
     res.status(400).json({ error: "Please attach a resume file." });
     return;
   }
+  if (!ownsSession(input.data.sessionId, req.user!.id)) {
+    res.status(404).json({ error: "This session was not found." });
+    return;
+  }
 
   try {
     const form = new FormData();
     form.append(
       "file",
-      new Blob([req.file.buffer], { type: req.file.mimetype || "application/octet-stream" }),
+      new Blob([new Uint8Array(req.file.buffer)], { type: req.file.mimetype || "application/octet-stream" }),
       req.file.originalname || "resume",
     );
 

@@ -1,5 +1,5 @@
-import { type ChangeEvent, type ReactNode, useEffect, useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createContext, type ChangeEvent, type ReactNode, useContext, useEffect, useState } from 'react';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Form } from '@/components/ui/form';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -18,6 +18,7 @@ import {
   LoaderCircle,
   LockKeyhole,
   LogOut,
+  Mail,
   Menu,
   Mic,
   Play,
@@ -29,6 +30,7 @@ import {
   Sparkles,
   Square,
   Upload,
+  UserRound,
   UsersRound,
   Volume2,
   X,
@@ -36,15 +38,21 @@ import {
 import { useForm } from 'react-hook-form';
 import {
   ApiError,
+  getGetCurrentUserQueryKey,
   getHealthCheckQueryKey,
   getGetGithubFootprintQueryKey,
   useEndSession,
+  useGetCurrentUser,
   useGetGithubFootprint,
   useHealthCheck,
+  useLogin,
+  useLogout,
+  useSignup,
   useStartSession,
   useUploadResume,
 } from '@workspace/api-client-react';
-import { Link, Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
+import type { AuthUser } from '@workspace/api-client-react';
+import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -105,7 +113,10 @@ function getScorecard(): Scorecard {
   }
 }
 
-function Logo({ compact = false }: { compact?: boolean }) {
+function Logo({ compact = false, theme = 'dark' }: { compact?: boolean; theme?: 'dark' | 'light' }) {
+  const auraColor = theme === 'dark' ? 'text-[#f8f4ed]' : 'text-[#2b2a3b]';
+  const checkColor = theme === 'dark' ? 'text-[#9ccfc0]' : 'text-[#397767]';
+  const taglineColor = theme === 'dark' ? 'text-[#9da0b1]' : 'text-[#8e888d]';
   return (
     <div className="flex items-center gap-3" data-testid="brand-auracheck">
       <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-[#8f70ae]/60 bg-[#eee6f5]">
@@ -116,14 +127,148 @@ function Logo({ compact = false }: { compact?: boolean }) {
           style={{ left: '-56px', top: '-10px' }}
         />
       </div>
-      {!compact && <div><div className="font-display text-[23px] leading-none tracking-[-.04em] text-[#f8f4ed]">aura<span className="text-[#9ccfc0]">Check</span></div><div className="mt-1 text-[8px] uppercase tracking-[.23em] text-[#9da0b1]">from vibe to verified</div></div>}
+      {!compact && <div><div className={`font-display text-[23px] leading-none tracking-[-.04em] ${auraColor}`}>aura<span className={checkColor}>Check</span></div><div className={`mt-1 text-[8px] uppercase tracking-[.23em] ${taglineColor}`}>from vibe to verified</div></div>}
     </div>
   );
 }
 
+const AuthContext = createContext<{ user: AuthUser | null; isLoading: boolean } | null>(null);
+
+function AuthProvider({ children }: { children: ReactNode }) {
+  const me = useGetCurrentUser({ query: { queryKey: getGetCurrentUserQueryKey(), retry: false } });
+  return <AuthContext.Provider value={{ user: me.data ?? null, isLoading: me.isLoading }}>{children}</AuthContext.Provider>;
+}
+
+function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || parts[0]?.[1] || '')).toUpperCase();
+}
+
+function RequireAuth({ children }: { children: ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return <div className="flex min-h-[100dvh] items-center justify-center bg-[#f5f1e9]"><LoaderCircle size={22} className="animate-spin text-[#8d67ae]" /></div>;
+  }
+  if (!user) {
+    return <Redirect to="/login" />;
+  }
+  return <>{children}</>;
+}
+
+function AuthLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#f5f1e9] px-5 py-12">
+      <div className="w-full max-w-[420px]">
+        <div className="mb-8 flex justify-center"><Logo theme="light" /></div>
+        <div className="rounded-[25px] border border-[#e4ddd3] bg-[#fbf8f2] p-8 shadow-[0_16px_45px_rgba(44,40,56,.06)]">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+type SignupValues = { name: string; email: string; password: string };
+
+function SignupPage() {
+  const { user, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+  const signup = useSignup();
+  const [error, setError] = useState<string | null>(null);
+  const form = useForm<SignupValues>({ defaultValues: { name: '', email: '', password: '' } });
+
+  if (!isLoading && user) return <Redirect to="/" />;
+
+  const onSubmit = async (values: SignupValues) => {
+    setError(null);
+    try {
+      const created = await signup.mutateAsync({ data: values });
+      queryClient.setQueryData(getGetCurrentUserQueryKey(), created);
+      setLocation('/');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not reach AuraCheck. Please try again.');
+    }
+  };
+
+  return (
+    <AuthLayout>
+      <SectionLabel>Create your account</SectionLabel>
+      <h1 className="font-display text-[32px] leading-tight tracking-[-.03em] text-[#262536]">Bring your whole signal.</h1>
+      <p className="mt-2 text-[13px] leading-6 text-[#77727d]">Set up your account to start practicing.</p>
+      <Form {...form}><form onSubmit={form.handleSubmit(onSubmit)} className="mt-7 space-y-4">
+        <label className="block"><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Name</span><input {...form.register('name', { required: true })} className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] px-4 py-3.5 text-[13px] outline-none transition-colors focus:border-[#8d67ae] focus:ring-2 focus:ring-[#8d67ae]/10" data-testid="input-signup-name" /></label>
+        <label className="block"><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Email</span><div className="relative"><Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#958c99]" /><input type="email" {...form.register('email', { required: true })} className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] py-3.5 pl-11 pr-4 text-[13px] outline-none transition-colors focus:border-[#8d67ae] focus:ring-2 focus:ring-[#8d67ae]/10" data-testid="input-signup-email" /></div></label>
+        <label className="block"><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Password</span><div className="relative"><LockKeyhole size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#958c99]" /><input type="password" {...form.register('password', { required: true, minLength: 8 })} className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] py-3.5 pl-11 pr-4 text-[13px] outline-none transition-colors focus:border-[#8d67ae] focus:ring-2 focus:ring-[#8d67ae]/10" data-testid="input-signup-password" /></div><span className="mt-1.5 block text-[10px] text-[#94849d]">At least 8 characters.</span></label>
+        <button type="submit" disabled={signup.isPending} className="flex w-full items-center justify-center gap-2 rounded-full bg-[#2d4540] px-5 py-3.5 text-[12px] font-semibold text-[#f2f7f3] transition-all hover:-translate-y-0.5 hover:bg-[#426b5d] disabled:cursor-wait disabled:opacity-70" data-testid="button-signup-submit">{signup.isPending ? <LoaderCircle size={16} className="animate-spin" /> : null} Create account</button>
+        {error && <p className="text-center text-[11px] leading-5 text-[#a35a5a]" data-testid="text-signup-error">{error}</p>}
+      </form></Form>
+      <p className="mt-6 text-center text-[12px] text-[#8e888d]">Already have an account? <Link href="/login" className="font-semibold text-[#8d67ae] hover:underline" data-testid="link-go-login">Sign in</Link></p>
+    </AuthLayout>
+  );
+}
+
+type LoginValues = { email: string; password: string };
+
+function LoginPage() {
+  const { user, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+  const login = useLogin();
+  const [error, setError] = useState<string | null>(null);
+  const form = useForm<LoginValues>({ defaultValues: { email: '', password: '' } });
+
+  if (!isLoading && user) return <Redirect to="/" />;
+
+  const onSubmit = async (values: LoginValues) => {
+    setError(null);
+    try {
+      const signedIn = await login.mutateAsync({ data: values });
+      queryClient.setQueryData(getGetCurrentUserQueryKey(), signedIn);
+      setLocation('/');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not reach AuraCheck. Please try again.');
+    }
+  };
+
+  return (
+    <AuthLayout>
+      <SectionLabel>Welcome back</SectionLabel>
+      <h1 className="font-display text-[32px] leading-tight tracking-[-.03em] text-[#262536]">Good to see you again.</h1>
+      <p className="mt-2 text-[13px] leading-6 text-[#77727d]">Sign in to get back in the room.</p>
+      <Form {...form}><form onSubmit={form.handleSubmit(onSubmit)} className="mt-7 space-y-4">
+        <label className="block"><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Email</span><div className="relative"><Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#958c99]" /><input type="email" {...form.register('email', { required: true })} className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] py-3.5 pl-11 pr-4 text-[13px] outline-none transition-colors focus:border-[#8d67ae] focus:ring-2 focus:ring-[#8d67ae]/10" data-testid="input-login-email" /></div></label>
+        <label className="block"><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Password</span><div className="relative"><LockKeyhole size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#958c99]" /><input type="password" {...form.register('password', { required: true })} className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] py-3.5 pl-11 pr-4 text-[13px] outline-none transition-colors focus:border-[#8d67ae] focus:ring-2 focus:ring-[#8d67ae]/10" data-testid="input-login-password" /></div></label>
+        <button type="submit" disabled={login.isPending} className="flex w-full items-center justify-center gap-2 rounded-full bg-[#2d4540] px-5 py-3.5 text-[12px] font-semibold text-[#f2f7f3] transition-all hover:-translate-y-0.5 hover:bg-[#426b5d] disabled:cursor-wait disabled:opacity-70" data-testid="button-login-submit">{login.isPending ? <LoaderCircle size={16} className="animate-spin" /> : null} Sign in</button>
+        {error && <p className="text-center text-[11px] leading-5 text-[#a35a5a]" data-testid="text-login-error">{error}</p>}
+      </form></Form>
+      <p className="mt-6 text-center text-[12px] text-[#8e888d]">New to AuraCheck? <Link href="/signup" className="font-semibold text-[#8d67ae] hover:underline" data-testid="link-go-signup">Create an account</Link></p>
+    </AuthLayout>
+  );
+}
+
 function AppShell({ children }: { children: ReactNode }) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const logout = useLogout();
+  const signOut = () => {
+    logout.mutate(undefined, {
+      onSettled: () => {
+        queryClient.setQueryData(getGetCurrentUserQueryKey(), null);
+        sessionStorage.removeItem('auracheck-session');
+        sessionStorage.removeItem('auracheck-scorecard');
+        setMobileOpen(false);
+        setLocation('/login');
+      },
+    });
+  };
+  const displayName = user?.name || 'Candidate';
   const items = [
     { href: '/', label: 'Overview', icon: LayoutDashboard },
     { href: '/setup', label: 'Prepare a session', icon: Plus },
@@ -150,10 +295,10 @@ function AppShell({ children }: { children: ReactNode }) {
             <div className="mb-3 flex items-center gap-2 text-[#b8a3ce]"><ShieldCheck size={15} /><span className="font-mono-ui text-[9px] uppercase tracking-[.15em]">Private by design</span></div>
             <p className="text-[11px] leading-[1.5] text-[#9799aa]">Your evidence stays yours. AuraCheck only uses it to make your coaching more honest.</p>
           </div>
-          <button className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[12px] text-[#8e91a4] transition-colors hover:bg-[#303044] hover:text-[#f5f1e9]" data-testid="button-log-out"><LogOut size={16} /> Sign out</button>
+          <button onClick={signOut} disabled={logout.isPending} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[12px] text-[#8e91a4] transition-colors hover:bg-[#303044] hover:text-[#f5f1e9] disabled:opacity-60" data-testid="button-log-out">{logout.isPending ? <LoaderCircle size={16} className="animate-spin" /> : <LogOut size={16} />} Sign out</button>
           <div className="mt-3 flex items-center gap-3 border-t border-[#39394c] px-2 pt-4">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#93c8b9] font-mono-ui text-[11px] text-[#233c39]">AM</div>
-            <div><div className="text-[12px] font-semibold text-[#ece8e0]">Arjun Mehta</div><div className="text-[10px] text-[#898b9d]">Candidate profile</div></div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#93c8b9] font-mono-ui text-[11px] text-[#233c39]">{initials(displayName)}</div>
+            <div><div className="text-[12px] font-semibold text-[#ece8e0]">{displayName}</div><div className="text-[10px] text-[#898b9d]">Candidate profile</div></div>
           </div>
         </div>
       </aside>
@@ -161,7 +306,7 @@ function AppShell({ children }: { children: ReactNode }) {
       <div className="min-w-0 md:pl-[238px]">
         <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-[#e5dfd5] bg-[#f5f1e9]/90 px-5 backdrop-blur-md sm:px-8">
           <div className="flex items-center gap-3"><button className="rounded-lg p-2 text-[#5d5b6b] hover:bg-[#ebe5dc] md:hidden" onClick={() => setMobileOpen(true)} data-testid="button-open-menu"><Menu size={19} /></button><span className="hidden font-mono-ui text-[10px] uppercase tracking-[.18em] text-[#99949b] sm:inline">Monday, 08 April 2024</span></div>
-          <div className="flex items-center gap-2 sm:gap-4"><button className="relative rounded-xl p-2 text-[#77717d] transition-colors hover:bg-[#ebe5dc]" data-testid="button-notifications"><Bell size={18} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#a374ba]" /></button><div className="hidden h-5 w-px bg-[#dfd8ce] sm:block" /><Link href="/settings" className="flex items-center gap-2 rounded-xl px-2 py-1.5 transition-colors hover:bg-[#ebe5dc]" data-testid="link-header-profile"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d5e9df] font-mono-ui text-[10px] font-medium text-[#326153]">AM</div><span className="hidden text-[12px] font-semibold text-[#444252] sm:inline">Arjun Mehta</span></Link></div>
+          <div className="flex items-center gap-2 sm:gap-4"><button className="relative rounded-xl p-2 text-[#77717d] transition-colors hover:bg-[#ebe5dc]" data-testid="button-notifications"><Bell size={18} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#a374ba]" /></button><div className="hidden h-5 w-px bg-[#dfd8ce] sm:block" /><Link href="/settings" className="flex items-center gap-2 rounded-xl px-2 py-1.5 transition-colors hover:bg-[#ebe5dc]" data-testid="link-header-profile"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d5e9df] font-mono-ui text-[10px] font-medium text-[#326153]">{initials(displayName)}</div><span className="hidden text-[12px] font-semibold text-[#444252] sm:inline">{displayName}</span></Link></div>
         </header>
         <main className="min-w-0">{children}</main>
       </div>
@@ -205,6 +350,7 @@ function Home() {
 }
 
 function Setup() {
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
   const startSession = useStartSession();
   const uploadResume = useUploadResume();
@@ -212,7 +358,7 @@ function Setup() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeStatus, setResumeStatus] = useState<'idle' | 'selected' | 'uploading' | 'done' | 'error'>('idle');
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const form = useForm<SetupValues>({ defaultValues: { candidateName: 'Arjun Mehta', targetRole: 'Frontend Engineer', githubUsername: '', resumeName: '' } });
+  const form = useForm<SetupValues>({ defaultValues: { candidateName: user?.name || '', targetRole: 'Frontend Engineer', githubUsername: '', resumeName: '' } });
   const watchedGithub = form.watch('githubUsername');
   const [debouncedGithub, setDebouncedGithub] = useState('');
   useEffect(() => {
@@ -294,10 +440,11 @@ function ScorecardPage() {
 }
 
 function SettingsPage() {
+  const { user } = useAuth();
   const [saved, setSaved] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [evidence, setEvidence] = useState(true);
-  const [name, setName] = useState('Arjun Mehta');
+  const [name, setName] = useState(user?.name || '');
   const save = () => { setSaved(true); window.setTimeout(() => setSaved(false), 2200); };
   return <div className="page-enter mx-auto max-w-[920px] px-5 py-8 sm:px-8 sm:py-12"><div className="mb-10"><SectionLabel>Room settings</SectionLabel><h1 className="font-display text-[clamp(42px,6vw,65px)] leading-[.95] tracking-[-.04em]">Make it feel<br /><em className="text-[#8d67ae]">like you.</em></h1><p className="mt-5 text-[14px] leading-7 text-[#77727d]">Your profile shapes the questions. Your preferences shape the quiet around them.</p></div><div className="space-y-5"><section className="rounded-[24px] border border-[#e4ddd3] bg-[#fbf8f2] p-6 sm:p-8"><div className="mb-7"><h2 className="font-display text-[29px]">Candidate profile</h2><p className="mt-1 text-[12px] text-[#8e888d]">This is the context your panel carries into each room.</p></div><div className="grid gap-5 sm:grid-cols-2"><label><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Name</span><input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] px-4 py-3.5 text-[13px] outline-none focus:border-[#8d67ae]" data-testid="input-settings-name" /></label><label><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Headline</span><input defaultValue="Frontend engineer · builder of useful things" className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] px-4 py-3.5 text-[13px] outline-none focus:border-[#8d67ae]" data-testid="input-settings-headline" /></label></div></section><section className="rounded-[24px] border border-[#e4ddd3] bg-[#fbf8f2] p-6 sm:p-8"><div className="mb-5"><h2 className="font-display text-[29px]">Room preferences</h2><p className="mt-1 text-[12px] text-[#8e888d]">Small choices that make practice easier to return to.</p></div><div className="divide-y divide-[#ebe4db]"><SettingRow icon={<Bell size={17} />} title="Gentle reminders" description="A nudge when it’s a good time to practice" checked={notifications} onChange={() => setNotifications(!notifications)} testId="switch-notifications" /><SettingRow icon={<ShieldCheck size={17} />} title="Show evidence prompts" description="Let the panel point to proof from your footprint" checked={evidence} onChange={() => setEvidence(!evidence)} testId="switch-evidence" /><SettingRow icon={<Volume2 size={17} />} title="Voice feedback" description="Read prompts and coaching notes aloud" checked={false} onChange={() => undefined} testId="switch-voice" /></div></section><div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center"><div className="flex items-center gap-2 text-[11px] text-[#8e888d]"><LockKeyhole size={14} className="text-[#8d67ae]" /> Your profile is only used to improve your rooms.</div><button onClick={save} className="flex items-center gap-2 rounded-full bg-[#2b2a3b] px-6 py-3.5 text-[12px] font-semibold text-[#faf6ee] transition-all hover:bg-[#8d67ae]" data-testid="button-save-settings">{saved ? <Check size={15} /> : null}{saved ? 'Saved' : 'Save changes'}</button></div></div></div>;
 }
@@ -306,13 +453,17 @@ function SettingRow({ icon, title, description, checked, onChange, testId }: { i
   return <div className="flex items-center gap-4 py-5"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#eee5f3] text-[#8d67ae]">{icon}</div><div className="flex-1"><div className="text-[13px] font-semibold text-[#514d59]">{title}</div><div className="mt-1 text-[11px] text-[#958e95]">{description}</div></div><button role="switch" aria-checked={checked} onClick={onChange} className={`relative h-6 w-11 rounded-full p-1 transition-colors ${checked ? 'bg-[#8d67ae]' : 'bg-[#d8d1ca]'}`} data-testid={testId}><span className={`block h-4 w-4 rounded-full bg-[#fffaf3] shadow-sm transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} /></button></div>;
 }
 
-function Router() {
+function AuthedApp() {
   const [location] = useLocation();
-  return <AppShell><ErrorBoundary resetKey={location}><Switch><Route path="/" component={Home} /><Route path="/setup" component={Setup} /><Route path="/interview" component={Interview} /><Route path="/scorecard" component={ScorecardPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch></ErrorBoundary></AppShell>;
+  return <RequireAuth><AppShell><ErrorBoundary resetKey={location}><Switch><Route path="/" component={Home} /><Route path="/setup" component={Setup} /><Route path="/interview" component={Interview} /><Route path="/scorecard" component={ScorecardPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch></ErrorBoundary></AppShell></RequireAuth>;
+}
+
+function Router() {
+  return <Switch><Route path="/login" component={LoginPage} /><Route path="/signup" component={SignupPage} /><Route><AuthedApp /></Route></Switch>;
 }
 
 function App() {
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><AuthProvider><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></AuthProvider></QueryClientProvider>;
 }
 
 export default App;

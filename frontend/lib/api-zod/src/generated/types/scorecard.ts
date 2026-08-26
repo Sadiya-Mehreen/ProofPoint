@@ -7,11 +7,15 @@
  */
 import type { ScoreDimension } from './scoreDimension';
 
+/**
+ * The panel judge's qualitative read on the candidate. There is no numeric score -- the judge produces a narrative assessment per dimension plus concrete red flags and repair steps.
+ */
 export interface Scorecard {
   sessionId: string;
   overallAssessment: string;
   dimensions: ScoreDimension[];
   redFlags: string[];
   mandatoryRepairSteps: string[];
+  /** True if the judge's output was missing one or more expected fields. */
   parseWarning: boolean;
 }

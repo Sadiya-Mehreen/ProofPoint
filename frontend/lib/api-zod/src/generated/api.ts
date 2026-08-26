@@ -9,6 +9,62 @@ import * as zod from 'zod';
 
 
 /**
+ * Creates a new account and signs the caller in (sets a session cookie).
+ * @summary Create an account
+ */
+
+export const signupBodyPasswordMin = 8;
+
+
+
+export const SignupBody = zod.object({
+  "name": zod.string().min(1),
+  "email": zod.string(),
+  "password": zod.string().min(signupBodyPasswordMin)
+})
+
+export const SignupResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string()
+})
+
+
+/**
+ * Verifies credentials and signs the caller in (sets a session cookie).
+ * @summary Sign in
+ */
+export const LoginBody = zod.object({
+  "email": zod.string(),
+  "password": zod.string()
+})
+
+export const LoginResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string()
+})
+
+
+/**
+ * Clears the caller's session cookie.
+ * @summary Sign out
+ */
+export const LogoutResponse = zod.void()
+
+
+/**
+ * Returns the account for the current session cookie, or 401 if not signed in.
+ * @summary Get the signed-in account
+ */
+export const GetCurrentUserResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string()
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */
@@ -56,15 +112,17 @@ export const EndSessionResponse = zod.object({
 })),
   "redFlags": zod.array(zod.string()),
   "mandatoryRepairSteps": zod.array(zod.string()),
-  "parseWarning": zod.boolean()
-})
+  "parseWarning": zod.boolean().describe('True if the judge\'s output was missing one or more expected fields.')
+}).describe('The panel judge\'s qualitative read on the candidate. There is no numeric score -- the judge produces a narrative assessment per dimension plus concrete red flags and repair steps.')
 
 
 /**
+ * Attaches a resume file to an already-started session (see POST /session/start) and returns a lightweight profile extracted from it.
  * @summary Upload and parse a candidate resume
  */
 export const UploadResumeBody = zod.object({
-  "sessionId": zod.string()
+  "sessionId": zod.string(),
+  "file": zod.instanceof(File)
 })
 
 export const UploadResumeResponse = zod.object({

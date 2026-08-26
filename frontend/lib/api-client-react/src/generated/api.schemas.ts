@@ -9,6 +9,25 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface SignupInput {
+  /** @minLength 1 */
+  name: string;
+  email: string;
+  /** @minLength 8 */
+  password: string;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export interface SessionStartInput {
   candidateName: string;
   targetRole: string;
@@ -37,12 +56,16 @@ export interface ScoreDimension {
   note: string;
 }
 
+/**
+ * The panel judge's qualitative read on the candidate. There is no numeric score -- the judge produces a narrative assessment per dimension plus concrete red flags and repair steps.
+ */
 export interface Scorecard {
   sessionId: string;
   overallAssessment: string;
   dimensions: ScoreDimension[];
   redFlags: string[];
   mandatoryRepairSteps: string[];
+  /** True if the judge's output was missing one or more expected fields. */
   parseWarning: boolean;
 }
 
