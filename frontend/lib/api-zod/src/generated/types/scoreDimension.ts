@@ -8,6 +8,5 @@
 
 export interface ScoreDimension {
   label: string;
-  score: number;
   note: string;
 }

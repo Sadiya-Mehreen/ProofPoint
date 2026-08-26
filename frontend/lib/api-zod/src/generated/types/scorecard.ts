@@ -8,8 +8,10 @@
 import type { ScoreDimension } from './scoreDimension';
 
 export interface Scorecard {
-  overallScore: number;
-  summary: string;
+  sessionId: string;
+  overallAssessment: string;
   dimensions: ScoreDimension[];
-  evidence: string[];
+  redFlags: string[];
+  mandatoryRepairSteps: string[];
+  parseWarning: boolean;
 }

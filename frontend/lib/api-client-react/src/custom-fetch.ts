@@ -251,43 +251,55 @@ async function parseJsonBody(
   }
 }
 
-async function parseErrorBody(response: Response, method: string): Promise<unknown> {
-  if (hasNoBody(response, method)) {
-    return null;
-  }
-
-  const mediaType = getMediaType(response.headers);
-
-  // Fall back to text when blob() is unavailable (e.g. some React Native builds).
-  if (mediaType && !isJsonMediaType(mediaType) && !isTextMediaType(mediaType)) {
-    return typeof response.blob === "function" ? response.blob() : response.text();
-  }
-
-  const raw = await response.text();
-  const normalized = stripBom(raw);
-  const trimmed = normalized.trim();
-
-  if (trimmed === "") {
-    return null;
-  }
-
-  if (isJsonMediaType(mediaType) || looksLikeJson(normalized)) {
-    try {
-      return JSON.parse(normalized);
-    } catch {
-      return raw;
-    }
-  }
-
-  return raw;
-}
-
 function inferResponseType(response: Response): "json" | "text" | "blob" {
   const mediaType = getMediaType(response.headers);
 
   if (isJsonMediaType(mediaType)) return "json";
   if (isTextMediaType(mediaType) || mediaType == null) return "text";
   return "blob";
+}
+
+async function parseErrorBody(response: Response, method: string): Promise<unknown> {
+  if (hasNoBody(response, method)) {
+    return null;
+  }
+
+  const effectiveType = inferResponseType(response);
+
+  // Fall back to text when blob() is unavailable (e.g. some React Native builds).
+  if (effectiveType === "blob") {
+    return typeof response.blob === "function" ? response.blob() : response.text();
+  }
+
+  if (effectiveType === "json") {
+    try {
+      return await parseJsonBody(response, { method, url: response.url });
+    } catch (cause) {
+      // Unlike success-path parsing, a malformed error body is reported as
+      // raw text instead of throwing — the caller already knows the request
+      // failed and just wants whatever detail it can get.
+      return cause instanceof ResponseParseError ? cause.rawBody : null;
+    }
+  }
+
+  // effectiveType === "text": no declared JSON content-type, but the body
+  // may still look like JSON (e.g. a proxy stripped headers).
+  const raw = await response.text();
+  const normalized = stripBom(raw);
+
+  if (normalized.trim() === "") {
+    return null;
+  }
+
+  if (!looksLikeJson(normalized)) {
+    return raw;
+  }
+
+  try {
+    return JSON.parse(normalized);
+  } catch {
+    return raw;
+  }
 }
 
 async function parseSuccessBody(

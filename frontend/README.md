@@ -4,12 +4,15 @@ AuraCheck helps fresher graduates rehearse interviews and presentations with a l
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `PORT=8080 pnpm --filter @workspace/api-server run dev` — run the API server
+- `PORT=25575 BASE_PATH=/ pnpm --filter @workspace/auracheck run dev` — run the AuraCheck frontend
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required env for `api-server`: `PORT`, `DATABASE_URL` (Postgres connection string), `BACKEND_URL` (the Python interview-engine service, see `backend/README.md`; defaults to `http://localhost:8000`)
+- Required env for `auracheck`: `PORT`, `BASE_PATH` (use `/`); optionally `API_SERVER_URL` to point its dev-server `/api` proxy at a non-default api-server host/port (defaults to `http://localhost:8080`)
+- In production (Replit), path-based routing sends `/api` to `api-server` and `/` to `auracheck` automatically. When running the two services locally outside Replit, `auracheck`'s Vite dev server proxies `/api` to `api-server` itself (see `vite.config.ts`), so start `api-server` first.
 
 ## Stack
 
@@ -23,7 +26,7 @@ AuraCheck helps fresher graduates rehearse interviews and presentations with a l
 ## Where things live
 
 - `artifacts/auracheck/` — React + Vite frontend with dashboard, session setup, live interview room, scorecard, and settings routes.
-- `artifacts/api-server/src/routes/interview.ts` — typed demo API routes for the session flow.
+- `artifacts/api-server/src/routes/interview.ts` — typed API routes for the session flow; proxies to the Python interview engine (`backend/`) via `BACKEND_URL` and translates between its snake_case/text-based responses and this contract's shapes.
 - `lib/api-spec/openapi.yaml` — source of truth for the session, resume, GitHub, and scorecard API contract.
 
 ## Architecture decisions
@@ -34,7 +37,7 @@ AuraCheck helps fresher graduates rehearse interviews and presentations with a l
 
 ## Product
 
-- Candidates can review preparation momentum, attach a resume, look up a GitHub footprint, start a practice room, follow a five-agent panel, and review a final scorecard with evidence and coaching notes.
+- Candidates can review preparation momentum, attach a resume, look up a GitHub footprint, start a practice room, follow a five-agent panel, and review a final scorecard with a qualitative read, red flags, and repair steps.
 
 ## User preferences
 
@@ -42,7 +45,9 @@ AuraCheck helps fresher graduates rehearse interviews and presentations with a l
 
 ## Gotchas
 
-- Run API codegen after changing `lib/api-spec/openapi.yaml`.
+- Run API codegen after changing `lib/api-spec/openapi.yaml`. (`pnpm --filter @workspace/api-spec run codegen` wasn't runnable in the environment this contract was last edited in — the generated output under `lib/api-zod` and `lib/api-client-react` was hand-updated to match; re-run codegen to confirm it reproduces the same output.)
+- `api-server` calls the Python backend under `backend/` for resume parsing, GitHub lookups, and interview scoring. That service has no numeric score in its scorecard output — it produces narrative text per dimension plus red flags and repair steps — so don't reintroduce a numeric `overallScore` without a real source for it.
+- Start the Python backend (`cd backend && uvicorn main:app --reload`, see `backend/README.md`) before `api-server` in local dev, or session/resume/GitHub calls will 502.
 
 ## Pointers
 

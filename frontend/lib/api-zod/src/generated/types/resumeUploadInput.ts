@@ -7,5 +7,6 @@
  */
 
 export interface ResumeUploadInput {
-  fileName: string;
+  sessionId: string;
+  file: Blob;
 }

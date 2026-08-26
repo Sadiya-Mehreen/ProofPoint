@@ -1,8 +1,6 @@
 import { mkdirSync, writeFileSync } from "fs";
 import path from "path";
 import glob from "fast-glob";
-import chokidar from "chokidar";
-import type { FSWatcher } from "chokidar";
 import type { Plugin } from "vite";
 
 const MOCKUPS_DIR = "src/components/mockups";
@@ -16,7 +14,6 @@ interface DiscoveredComponent {
 export function mockupPreviewPlugin(): Plugin {
   let root = "";
   let currentSource = "";
-  let watcher: FSWatcher | null = null;
 
   function getMockupsAbsDir(): string {
     return path.join(root, MOCKUPS_DIR);
@@ -114,6 +111,18 @@ export function mockupPreviewPlugin(): Plugin {
     await refresh();
   }
 
+  function refreshInBackground(): void {
+    refresh().catch((err) => {
+      console.error("[mockup-preview] failed to refresh generated module:", err);
+    });
+  }
+
+  function onFileAddedOrRemovedInBackground(): void {
+    onFileAddedOrRemoved().catch((err) => {
+      console.error("[mockup-preview] failed to handle file change:", err);
+    });
+  }
+
   return {
     name: "mockup-preview",
     enforce: "pre",
@@ -132,26 +141,20 @@ export function mockupPreviewPlugin(): Plugin {
       const mockupsAbsDir = getMockupsAbsDir();
       mkdirSync(mockupsAbsDir, { recursive: true });
 
-      watcher = chokidar.watch(mockupsAbsDir, {
-        ignoreInitial: true,
-        awaitWriteFinish: {
-          stabilityThreshold: 100,
-          pollInterval: 50,
-        },
-      });
-
-      watcher.on("add", (file) => {
+      // Reuse Vite's own project watcher (already covers this directory) instead
+      // of spinning up a second chokidar instance.
+      viteServer.watcher.on("add", (file) => {
         if (
           isMockupFile(file) &&
           isPreviewTarget(path.relative(mockupsAbsDir, file))
         ) {
-          void onFileAddedOrRemoved();
+          onFileAddedOrRemovedInBackground();
         }
       });
 
-      watcher.on("unlink", (file) => {
+      viteServer.watcher.on("unlink", (file) => {
         if (isMockupFile(file)) {
-          void onFileAddedOrRemoved();
+          onFileAddedOrRemovedInBackground();
         }
       });
 
@@ -162,19 +165,13 @@ export function mockupPreviewPlugin(): Plugin {
 
         res.end = ((...args: Parameters<typeof originalEnd>) => {
           if (res.statusCode === 404 && shouldAutoRescan(pathname)) {
-            void refresh();
+            refreshInBackground();
           }
           return originalEnd(...args);
         }) as typeof res.end;
 
         next();
       });
-    },
-
-    async closeWatcher() {
-      if (watcher) {
-        await watcher.close();
-      }
     },
   };
 }
