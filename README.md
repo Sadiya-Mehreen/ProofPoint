@@ -8,6 +8,14 @@ history actually show -- catching the gap between "I built a production FastAPI 
 and a two-commit tutorial clone -- and a Judge agent synthesizes everything into a final
 scorecard at the end of the session.
 
+## Live
+
+- **App**: https://auracheck-taupe.vercel.app
+- **API** (Railway, Node auth/session layer -- not meant to be browsed directly): https://api-server-production-582a.up.railway.app
+
+Frontend is hosted on Vercel; both backend services (the Node api-server above, and the
+Python/CrewAI engine it talks to privately) run on Railway.
+
 ## Structure
 
 - [backend/](backend/) -- the FastAPI backend: resume/GitHub/speech services, the
