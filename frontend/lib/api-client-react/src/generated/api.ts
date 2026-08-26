@@ -287,14 +287,16 @@ export const getUploadResumeUrl = () => {
 /**
  * @summary Upload and parse a candidate resume
  */
-export const uploadResume = async (resumeUploadInput: ResumeUploadInput, options?: Parameters<typeof customFetch>[1]): Promise<CandidateProfile> => {
+export const uploadResume = async (resumeUploadInput: BodyType<ResumeUploadInput>, options?: Parameters<typeof customFetch>[1]): Promise<CandidateProfile> => {
+  const formData = new FormData();
+  formData.append('sessionId', resumeUploadInput.sessionId)
+  formData.append('file', resumeUploadInput.file)
 
   return customFetch<CandidateProfile>(getUploadResumeUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(resumeUploadInput)
+    body: formData
   }
 );}
 

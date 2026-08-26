@@ -34,15 +34,16 @@ export interface Session {
 
 export interface ScoreDimension {
   label: string;
-  score: number;
   note: string;
 }
 
 export interface Scorecard {
-  overallScore: number;
-  summary: string;
+  sessionId: string;
+  overallAssessment: string;
   dimensions: ScoreDimension[];
-  evidence: string[];
+  redFlags: string[];
+  mandatoryRepairSteps: string[];
+  parseWarning: boolean;
 }
 
 export interface CandidateProfile {
@@ -60,6 +61,7 @@ export interface GithubFootprint {
 }
 
 export interface ResumeUploadInput {
-  fileName: string;
+  sessionId: string;
+  file: Blob;
 }
 

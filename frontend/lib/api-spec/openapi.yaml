@@ -65,10 +65,14 @@ paths:
       operationId: uploadResume
       tags: [candidate]
       summary: Upload and parse a candidate resume
+      description: >-
+        Attaches a resume file to an already-started session (see
+        POST /session/start) and returns a lightweight profile extracted
+        from it.
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: "#/components/schemas/ResumeUploadInput"
       responses:
@@ -152,28 +156,37 @@ components:
           type: string
     Scorecard:
       type: object
-      required: [overallScore, summary, dimensions, evidence]
+      description: >-
+        The panel judge's qualitative read on the candidate. There is no
+        numeric score -- the judge produces a narrative assessment per
+        dimension plus concrete red flags and repair steps.
+      required: [sessionId, overallAssessment, dimensions, redFlags, mandatoryRepairSteps, parseWarning]
       properties:
-        overallScore:
-          type: number
-        summary:
+        sessionId:
+          type: string
+        overallAssessment:
           type: string
         dimensions:
           type: array
           items:
             $ref: "#/components/schemas/ScoreDimension"
-        evidence:
+        redFlags:
           type: array
           items:
             type: string
+        mandatoryRepairSteps:
+          type: array
+          items:
+            type: string
+        parseWarning:
+          type: boolean
+          description: True if the judge's output was missing one or more expected fields.
     ScoreDimension:
       type: object
-      required: [label, score, note]
+      required: [label, note]
       properties:
         label:
           type: string
-        score:
-          type: number
         note:
           type: string
     CandidateProfile:
@@ -206,8 +219,11 @@ components:
           type: string
     ResumeUploadInput:
       type: object
-      required: [fileName]
+      required: [sessionId, file]
       properties:
-        fileName:
+        sessionId:
           type: string
+        file:
+          type: string
+          format: binary
 

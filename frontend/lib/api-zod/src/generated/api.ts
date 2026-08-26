@@ -48,14 +48,15 @@ export const EndSessionParams = zod.object({
 })
 
 export const EndSessionResponse = zod.object({
-  "overallScore": zod.number(),
-  "summary": zod.string(),
+  "sessionId": zod.string(),
+  "overallAssessment": zod.string(),
   "dimensions": zod.array(zod.object({
   "label": zod.string(),
-  "score": zod.number(),
   "note": zod.string()
 })),
-  "evidence": zod.array(zod.string())
+  "redFlags": zod.array(zod.string()),
+  "mandatoryRepairSteps": zod.array(zod.string()),
+  "parseWarning": zod.boolean()
 })
 
 
@@ -63,7 +64,7 @@ export const EndSessionResponse = zod.object({
  * @summary Upload and parse a candidate resume
  */
 export const UploadResumeBody = zod.object({
-  "fileName": zod.string()
+  "sessionId": zod.string()
 })
 
 export const UploadResumeResponse = zod.object({
