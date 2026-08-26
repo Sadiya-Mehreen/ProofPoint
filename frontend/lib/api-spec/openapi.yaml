@@ -190,6 +190,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InterviewDetail"
+    delete:
+      operationId: deleteInterview
+      tags: [sessions]
+      summary: Delete one past interview permanently
+      parameters:
+        - $ref: "#/components/parameters/InterviewId"
+      responses:
+        "204":
+          description: Deleted
 components:
   parameters:
     SessionId:
