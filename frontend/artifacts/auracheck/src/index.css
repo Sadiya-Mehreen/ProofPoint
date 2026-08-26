@@ -1,0 +1,184 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-border: var(--primary-border);
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary-border: var(--secondary-border);
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted-border: var(--muted-border);
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-border: var(--accent-border);
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-border: var(--destructive-border);
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-mono: var(--app-font-mono);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --background: 36 38% 96%;
+  --foreground: 232 27% 17%;
+  --border: 36 20% 85%;
+  --input: 36 20% 85%;
+  --ring: 270 43% 56%;
+  --card: 40 33% 99%;
+  --card-foreground: 232 27% 17%;
+  --card-border: 36 22% 88%;
+  --sidebar: 234 29% 14%;
+  --sidebar-foreground: 40 30% 94%;
+  --sidebar-border: 234 22% 24%;
+  --sidebar-primary: 270 43% 63%;
+  --sidebar-primary-foreground: 234 29% 14%;
+  --sidebar-accent: 234 25% 21%;
+  --sidebar-accent-foreground: 40 30% 94%;
+  --sidebar-ring: 270 43% 63%;
+  --popover: 40 33% 99%;
+  --popover-foreground: 232 27% 17%;
+  --popover-border: 36 22% 88%;
+  --primary: 270 43% 48%;
+  --primary-foreground: 40 33% 99%;
+  --secondary: 165 37% 85%;
+  --secondary-foreground: 174 33% 21%;
+  --muted: 36 24% 91%;
+  --muted-foreground: 230 12% 46%;
+  --accent: 165 37% 85%;
+  --accent-foreground: 174 33% 21%;
+  --destructive: 4 62% 47%;
+  --destructive-foreground: 40 33% 99%;
+  --chart-1: 270 43% 48%;
+  --chart-2: 165 37% 44%;
+  --chart-3: 36 73% 57%;
+  --chart-4: 205 55% 52%;
+  --chart-5: 4 62% 47%;
+  --app-font-sans: 'DM Sans', sans-serif;
+  --app-font-serif: 'Instrument Serif', Georgia, serif;
+  --app-font-mono: 'DM Mono', monospace;
+  --radius: 1.05rem;
+  --primary-border: hsl(var(--primary));
+  --secondary-border: hsl(var(--secondary));
+  --muted-border: hsl(var(--muted));
+  --accent-border: hsl(var(--accent));
+  --destructive-border: hsl(var(--destructive));
+}
+
+.dark {
+  --background: 234 29% 12%;
+  --foreground: 40 30% 94%;
+  --border: 234 22% 26%;
+  --input: 234 22% 26%;
+  --card: 234 25% 16%;
+  --card-foreground: 40 30% 94%;
+  --card-border: 234 22% 26%;
+  --sidebar: 234 32% 9%;
+  --sidebar-foreground: 40 30% 94%;
+  --sidebar-border: 234 22% 19%;
+  --sidebar-primary: 270 43% 68%;
+  --sidebar-primary-foreground: 234 32% 9%;
+  --sidebar-accent: 234 25% 16%;
+  --sidebar-accent-foreground: 40 30% 94%;
+  --sidebar-ring: 270 43% 68%;
+  --popover: 234 25% 16%;
+  --popover-foreground: 40 30% 94%;
+  --popover-border: 234 22% 26%;
+  --primary: 270 43% 65%;
+  --primary-foreground: 234 32% 9%;
+  --secondary: 165 25% 25%;
+  --secondary-foreground: 165 37% 88%;
+  --muted: 234 20% 22%;
+  --muted-foreground: 230 12% 70%;
+  --accent: 165 25% 25%;
+  --accent-foreground: 165 37% 88%;
+  --destructive: 4 62% 58%;
+  --destructive-foreground: 234 32% 9%;
+  --primary-border: hsl(var(--primary));
+  --secondary-border: hsl(var(--secondary));
+  --muted-border: hsl(var(--muted));
+  --accent-border: hsl(var(--accent));
+  --destructive-border: hsl(var(--destructive));
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply min-w-0 overflow-x-hidden font-sans antialiased bg-background text-foreground; margin: 0; }
+  button, a, input, label { -webkit-tap-highlight-color: transparent; }
+}
+
+@layer utilities {
+  .font-display { font-family: var(--app-font-serif); }
+  .font-mono-ui { font-family: var(--app-font-mono); }
+  .aurora-grid {
+    background-image: linear-gradient(hsl(234 25% 24% / .16) 1px, transparent 1px), linear-gradient(90deg, hsl(234 25% 24% / .16) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+}
+
+html { scroll-behavior: smooth; }
+::selection { background: hsl(var(--primary) / .22); }
+
+.page-enter { animation: pageEnter .55s cubic-bezier(.2,.8,.2,1) both; }
+.stagger-1 { animation-delay: .06s; }
+.stagger-2 { animation-delay: .12s; }
+.stagger-3 { animation-delay: .18s; }
+.stagger-4 { animation-delay: .24s; }
+.pulse-dot { animation: pulseDot 2s ease-in-out infinite; }
+.wave-bar { animation: wave 1.2s ease-in-out infinite; transform-origin: bottom; }
+.wave-bar:nth-child(2) { animation-delay: .14s; }
+.wave-bar:nth-child(3) { animation-delay: .28s; }
+.wave-bar:nth-child(4) { animation-delay: .42s; }
+.wave-bar:nth-child(5) { animation-delay: .56s; }
+
+@keyframes pageEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulseDot { 0%, 100% { opacity: .45; transform: scale(.85); } 50% { opacity: 1; transform: scale(1); } }
+@keyframes wave { 0%, 100% { transform: scaleY(.4); opacity: .5; } 50% { transform: scaleY(1); opacity: 1; } }
+
+@media (max-width: 640px) {
+  /* The score ring and supporting copy stack inside narrow phone cards. */
+  div:has(> div > div > [data-testid="text-overall-score"]) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.25rem;
+  }
+
+  div:has(> div > div > [data-testid="text-overall-score"]) > div:first-child {
+    width: 7rem;
+    height: 7rem;
+  }
+
+  [data-testid="text-overall-score"] {
+    font-size: 2.5rem;
+  }
+}

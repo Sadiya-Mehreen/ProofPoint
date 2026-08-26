@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "AuraCheck"
+description = "An immersive interview and presentation preparation platform for fresher graduates, with a live five-agent AI panel, evidence-backed skill verification, and instant coaching feedback."
+version = "1.0.0"
+id = "artifacts/auracheck"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25575
+
+[services.development]
+run = "pnpm --filter @workspace/auracheck run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/auracheck", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/auracheck/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25575"
+BASE_PATH = "/"
