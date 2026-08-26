@@ -29,7 +29,6 @@ import {
   SlidersHorizontal,
   Sparkles,
   Square,
-  Trash2,
   Upload,
   UsersRound,
   Volume2,
@@ -44,7 +43,6 @@ import {
   getGetGithubFootprintQueryKey,
   getInterview,
   getListInterviewsQueryKey,
-  useDeleteInterview,
   useEndSession,
   useGetCurrentUser,
   useGetGithubFootprint,
@@ -864,20 +862,8 @@ function generateScorecardPdf(detail: InterviewDetail): void {
 }
 
 function ScorecardListPage() {
-  const queryClient = useQueryClient();
   const { data: interviews, isLoading } = useListInterviews({ query: { queryKey: getListInterviewsQueryKey() } });
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const deleteInterview = useDeleteInterview({
-    mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListInterviewsQueryKey() }) },
-  });
-
-  const handleDelete = (e: MouseEvent, interviewId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (window.confirm('Delete this scorecard permanently? This cannot be undone.')) {
-      deleteInterview.mutate({ interviewId });
-    }
-  };
 
   const handleDownload = async (e: MouseEvent, interview: InterviewSummary) => {
     e.preventDefault();
@@ -896,7 +882,7 @@ function ScorecardListPage() {
   return <div className="page-enter mx-auto max-w-[1150px] px-5 py-8 sm:px-8 sm:py-12"><div className="mb-9 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><SectionLabel>Interview history</SectionLabel><h1 className="font-display text-[clamp(42px,6vw,68px)] leading-[.94] tracking-[-.045em]">Every read,<br />kept for <em className="text-[#8d67ae]">you.</em></h1><p className="mt-5 max-w-[500px] text-[14px] leading-7 text-[#77727d]">Each practice room is saved on its own — nothing gets overwritten.</p></div><Link href="/setup" className="group inline-flex w-fit items-center gap-2 rounded-full border border-[#cfc2d8] bg-[#f3eaf7] px-4 py-3 text-[11px] font-semibold text-[#805b98] transition-colors hover:bg-[#e8d9ef]" data-testid="link-new-session"><Plus size={15} /> New practice room <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" /></Link></div>
     {isLoading ? <div className="flex items-center gap-2 text-[12px] text-[#8e888d]"><LoaderCircle size={15} className="animate-spin" /> Loading your history…</div>
     : !interviews || interviews.length === 0 ? <div className="rounded-[25px] border border-dashed border-[#d9d0c3] bg-[#fbf8f2] p-10 text-center" data-testid="empty-interview-history"><p className="text-[13px] leading-6 text-[#8b858d]">You haven't completed a practice room yet. Start one to see your read here.</p></div>
-    : <div className="overflow-hidden rounded-[22px] border border-[#e4ddd3] bg-[#fbf8f2]">{interviews.map((interview, i) => <Link key={interview.id} href={`/scorecard/${interview.id}`} className="group flex flex-col gap-3 border-b border-[#e8e1d7] px-5 py-5 transition-colors last:border-0 hover:bg-[#f7f1e8] sm:flex-row sm:items-center sm:justify-between sm:px-7" data-testid={`row-interview-${i}`}><div><div className="text-[14px] font-semibold text-[#3c3949]">{interview.candidateName}{interview.targetRole ? ` · ${interview.targetRole}` : ''}</div><div className="mt-1 text-[11px] text-[#918c93]">{new Date(interview.endedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</div></div><div className="flex items-center gap-4"><div className="text-right"><div className="font-mono-ui text-[9px] uppercase tracking-wider text-[#aaa3a5]">Overall</div><div className="mt-1 font-display text-[24px] leading-none text-[#4a3d58]">{interview.overallScore ?? '—'}{interview.overallScore != null && <span className="text-[12px] text-[#a8a0a1]">/100</span>}</div></div><button onClick={(e) => handleDownload(e, interview)} disabled={downloadingId === interview.id} className="rounded-lg p-2 text-[#8e888d] transition-colors hover:bg-[#ece4f2] hover:text-[#805b98] disabled:opacity-50" title="Download as JSON" data-testid={`button-download-${i}`}>{downloadingId === interview.id ? <LoaderCircle size={15} className="animate-spin" /> : <Download size={15} />}</button><button onClick={(e) => handleDelete(e, interview.id)} disabled={deleteInterview.isPending} className="rounded-lg p-2 text-[#8e888d] transition-colors hover:bg-[#f6e3e3] hover:text-[#a35a5a] disabled:opacity-50" title="Delete" data-testid={`button-delete-${i}`}><Trash2 size={15} /></button><ChevronRight size={16} className="text-[#8d67ae] opacity-70 transition-transform group-hover:translate-x-0.5" /></div></Link>)}</div>}
+    : <div className="overflow-hidden rounded-[22px] border border-[#e4ddd3] bg-[#fbf8f2]">{interviews.map((interview, i) => <Link key={interview.id} href={`/scorecard/${interview.id}`} className="group flex flex-col gap-3 border-b border-[#e8e1d7] px-5 py-5 transition-colors last:border-0 hover:bg-[#f7f1e8] sm:flex-row sm:items-center sm:justify-between sm:px-7" data-testid={`row-interview-${i}`}><div><div className="text-[14px] font-semibold text-[#3c3949]">{interview.candidateName}{interview.targetRole ? ` · ${interview.targetRole}` : ''}</div><div className="mt-1 text-[11px] text-[#918c93]">{new Date(interview.endedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</div></div><div className="flex items-center gap-4"><div className="text-right"><div className="font-mono-ui text-[9px] uppercase tracking-wider text-[#aaa3a5]">Overall</div><div className="mt-1 font-display text-[24px] leading-none text-[#4a3d58]">{interview.overallScore ?? '—'}{interview.overallScore != null && <span className="text-[12px] text-[#a8a0a1]">/100</span>}</div></div><button onClick={(e) => handleDownload(e, interview)} disabled={downloadingId === interview.id} className="rounded-lg p-2 text-[#8e888d] transition-colors hover:bg-[#ece4f2] hover:text-[#805b98] disabled:opacity-50" title="Download as PDF" data-testid={`button-download-${i}`}>{downloadingId === interview.id ? <LoaderCircle size={15} className="animate-spin" /> : <Download size={15} />}</button><ChevronRight size={16} className="text-[#8d67ae] opacity-70 transition-transform group-hover:translate-x-0.5" /></div></Link>)}</div>}
   </div>;
 }
 

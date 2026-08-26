@@ -211,13 +211,3 @@ export const GetInterviewResponse = zod.object({
 })
 
 
-/**
- * @summary Delete one past interview permanently
- */
-export const DeleteInterviewParams = zod.object({
-  "interviewId": zod.coerce.string()
-})
-
-export const DeleteInterviewResponse = zod.void()
-
-
