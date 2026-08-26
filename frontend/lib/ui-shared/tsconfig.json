@@ -7,8 +7,7 @@
     "outDir": "dist",
     "rootDir": "src",
     "jsx": "preserve",
-    "lib": ["dom", "es2022"],
-    "types": ["node"]
+    "lib": ["dom", "es2022"]
   },
   "include": ["src"]
 }

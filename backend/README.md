@@ -33,7 +33,7 @@ Speech/transcript ┘        │                  │
 - **CandidateContext** (`models/candidate_context.py`) -- the Pydantic model that aggregates
   resume text, GitHub data, transcript history, and agent findings for one session.
 - **Agents** (`agents/`) -- five CrewAI `Agent`s (Alex, Dave, Sarah, Marcus, Judge), each with
-  an inline `role`/`goal`/`backstory` and `llm="groq/llama-3.3-70b-versatile"`.
+  an inline `role`/`goal`/`backstory` and `llm="groq/openai/gpt-oss-120b"`.
 - **Crew orchestration** (`crew/`) -- `tasks.py` builds per-agent CrewAI `Task`s from a
   `CandidateContext`; `interview_crew.py` runs a subset of agents (and, separately, the
   Judge) via `Crew(process=Process.sequential).kickoff()`; `interruption_engine.py` decides

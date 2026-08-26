@@ -7,11 +7,14 @@
  */
 
 export * from './agent';
+export * from './authUser';
 export * from './candidateProfile';
 export * from './githubFootprint';
 export * from './healthStatus';
+export * from './loginInput';
 export * from './resumeUploadInput';
 export * from './scorecard';
 export * from './scoreDimension';
 export * from './session';
 export * from './sessionStartInput';
+export * from './signupInput';

@@ -10,11 +10,73 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Account signup, login, and session operations
   - name: sessions
     description: Interview session operations
   - name: candidate
     description: Candidate setup and evidence
 paths:
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Create an account
+      description: Creates a new account and signs the caller in (sets a session cookie).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupInput"
+      responses:
+        "200":
+          description: Account created and signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Sign in
+      description: Verifies credentials and signs the caller in (sets a session cookie).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Sign out
+      description: Clears the caller's session cookie.
+      responses:
+        "204":
+          description: Signed out
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get the signed-in account
+      description: Returns the account for the current session cookie, or 401 if not signed in.
+      responses:
+        "200":
+          description: The signed-in account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
   /healthz:
     get:
       operationId: healthCheck
@@ -116,6 +178,36 @@ components:
           type: string
       required:
         - status
+    SignupInput:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: string
+        password:
+          type: string
+          minLength: 8
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+    AuthUser:
+      type: object
+      required: [id, name, email]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
     SessionStartInput:
       type: object
       required: [candidateName, targetRole]
