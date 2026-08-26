@@ -105,15 +105,22 @@ export const EndSessionParams = zod.object({
 
 export const EndSessionResponse = zod.object({
   "sessionId": zod.string(),
+  "interviewId": zod.string().describe('Id of the persisted interview-history record for this session.'),
   "overallAssessment": zod.string(),
   "dimensions": zod.array(zod.object({
   "label": zod.string(),
-  "note": zod.string()
+  "note": zod.string(),
+  "score": zod.number().nullable()
 })),
   "redFlags": zod.array(zod.string()),
   "mandatoryRepairSteps": zod.array(zod.string()),
-  "parseWarning": zod.boolean().describe('True if the judge\'s output was missing one or more expected fields.')
-}).describe('The panel judge\'s qualitative read on the candidate. There is no numeric score -- the judge produces a narrative assessment per dimension plus concrete red flags and repair steps.')
+  "parseWarning": zod.boolean().describe('True if the judge\'s output was missing one or more expected fields.'),
+  "overallScore": zod.number().nullable(),
+  "strengths": zod.array(zod.string()),
+  "weaknesses": zod.array(zod.string()),
+  "areasToImprove": zod.array(zod.string()),
+  "finalRecommendation": zod.string().nullable()
+}).describe('The panel judge\'s read on the candidate: a narrative assessment per dimension, concrete red flags and repair steps, plus a numeric overall\/per-dimension score, strengths, weaknesses, and a final recommendation synthesized from the complete interview conversation.')
 
 
 /**
@@ -145,6 +152,62 @@ export const GetGithubFootprintResponse = zod.object({
   "repositories": zod.number(),
   "topLanguages": zod.array(zod.string()),
   "summary": zod.string()
+})
+
+
+/**
+ * @summary List the signed-in candidate's past interviews
+ */
+export const ListInterviewsResponseItem = zod.object({
+  "id": zod.string(),
+  "candidateName": zod.string(),
+  "targetRole": zod.string().nullable(),
+  "startedAt": zod.string(),
+  "endedAt": zod.string(),
+  "overallScore": zod.number().nullable()
+})
+export const ListInterviewsResponse = zod.array(ListInterviewsResponseItem)
+
+
+/**
+ * @summary Get one past interview's full detail
+ */
+export const GetInterviewParams = zod.object({
+  "interviewId": zod.coerce.string()
+})
+
+export const GetInterviewResponse = zod.object({
+  "id": zod.string(),
+  "candidateName": zod.string(),
+  "targetRole": zod.string().nullable(),
+  "startedAt": zod.string(),
+  "endedAt": zod.string(),
+  "scorecard": zod.object({
+  "sessionId": zod.string(),
+  "interviewId": zod.string().describe('Id of the persisted interview-history record for this session.'),
+  "overallAssessment": zod.string(),
+  "dimensions": zod.array(zod.object({
+  "label": zod.string(),
+  "note": zod.string(),
+  "score": zod.number().nullable()
+})),
+  "redFlags": zod.array(zod.string()),
+  "mandatoryRepairSteps": zod.array(zod.string()),
+  "parseWarning": zod.boolean().describe('True if the judge\'s output was missing one or more expected fields.'),
+  "overallScore": zod.number().nullable(),
+  "strengths": zod.array(zod.string()),
+  "weaknesses": zod.array(zod.string()),
+  "areasToImprove": zod.array(zod.string()),
+  "finalRecommendation": zod.string().nullable()
+}).describe('The panel judge\'s read on the candidate: a narrative assessment per dimension, concrete red flags and repair steps, plus a numeric overall\/per-dimension score, strengths, weaknesses, and a final recommendation synthesized from the complete interview conversation.'),
+  "transcript": zod.array(zod.object({
+  "role": zod.string().describe('\"candidate\" or \"interviewer\"'),
+  "speaker": zod.string().nullish(),
+  "text": zod.string(),
+  "topic": zod.string().nullish(),
+  "difficulty": zod.string().nullish()
+})),
+  "topics": zod.array(zod.string())
 })
 
 

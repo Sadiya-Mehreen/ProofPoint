@@ -26,9 +26,19 @@ FINAL_SCORECARD_EXPECTED_OUTPUT = (
     '"domain_strategy" (string, how plausible and domain-appropriate the pitch was), '
     '"overall_assessment" (string, holistic verdict on credibility), '
     '"biggest_red_flags" (array of strings, the most serious specific issues found, '
-    'empty array if none), and "mandatory_repair_steps" (array of strings, concrete '
-    "things the candidate would need to address or clarify, empty array if none). "
-    "Respond with only the JSON object, no surrounding text."
+    'empty array if none), "mandatory_repair_steps" (array of strings, concrete '
+    "things the candidate would need to address or clarify, empty array if none), "
+    '"overall_score" (integer 0-100, holistic score across the whole interview), '
+    '"technical_score" (integer 0-100), "problem_solving_score" (integer 0-100), '
+    '"communication_score" (integer 0-100), "project_knowledge_score" (integer 0-100), '
+    '"behavioral_score" (integer 0-100), "practical_experience_score" (integer 0-100), '
+    '"confidence_score" (integer 0-100), "strengths" (array of short strings, concrete '
+    'things the candidate did well, grounded in what they actually said), "weaknesses" '
+    '(array of short strings, concrete gaps, empty array if none), "areas_to_improve" '
+    '(array of short strings, actionable suggestions), and "final_recommendation" '
+    "(one or two sentence hiring-style recommendation). Base every score and claim on "
+    "the actual conversation and findings below -- do not invent specifics that were "
+    "never said. Respond with only the JSON object, no surrounding text."
 )
 
 
@@ -132,26 +142,40 @@ Weigh the panel's findings and render a final verdict on the candidate's credibi
     return Task(description=description, expected_output=FINDING_EXPECTED_OUTPUT, agent=judge)
 
 
+def _format_conversation(context: CandidateContext) -> str:
+    if not context.conversation_history:
+        return "(no conversation recorded)"
+    lines = []
+    for entry in context.conversation_history:
+        if entry.get("role") == "interviewer":
+            lines.append(f"[{entry.get('speaker')}] {entry.get('text')}")
+        else:
+            lines.append(f"[candidate] {entry.get('text')}")
+    return "\n".join(lines)
+
+
 def build_final_judge_task(context: CandidateContext) -> Task:
     """Session-end scorecard task -- distinct from build_judge_task's live-interrupt shape."""
     summary = context.to_summary_dict()
     description = f"""
 You are the presiding judge delivering the FINAL scorecard for candidate
-{summary['candidate_name'] or 'Unknown'} at the end of the interview.
+{summary['candidate_name'] or 'Unknown'} (target role: {context.target_role or 'not specified'})
+at the end of the interview.
 
-ALL ACCUMULATED PANEL FINDINGS FROM THE FULL SESSION:
+FULL INTERVIEW CONVERSATION (interviewer questions and candidate answers, in order):
+{_format_conversation(context)}
+
+ALL ACCUMULATED INTEGRITY-PANEL FINDINGS FROM THE FULL SESSION:
 {_format_findings(context.agent_findings)}
 
-Synthesize the panel's full findings into a final scorecard covering:
-- reality_vs_resume: how well the candidate's actual GitHub/technical evidence matches
-  their resume claims
-- technical_integrity: whether their technical answers held up under scrutiny
-- communication: clarity vs. corporate-speak/filler in how they communicated
-- domain_strategy: how plausible and domain-appropriate their pitch/framing was
-- overall_assessment: a holistic verdict on the candidate's credibility
-- biggest_red_flags: the most serious specific issues found, if any
-- mandatory_repair_steps: concrete things the candidate would need to address or
-  clarify, if any
+Synthesize the whole interview -- not just isolated answers -- into a final scorecard
+covering both the narrative fields (reality_vs_resume, technical_integrity,
+communication, domain_strategy, overall_assessment, biggest_red_flags,
+mandatory_repair_steps) and the numeric/structured fields (overall_score and the
+per-dimension scores, strengths, weaknesses, areas_to_improve, final_recommendation)
+described in the expected output. Base every score and claim on what the candidate
+actually said in the conversation above -- never invent a specific detail, metric, or
+achievement that wasn't part of it.
 """.strip()
     return Task(
         description=description, expected_output=FINAL_SCORECARD_EXPECTED_OUTPUT, agent=judge

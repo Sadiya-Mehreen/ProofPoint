@@ -10,6 +10,11 @@ from fastapi import APIRouter, HTTPException, UploadFile, WebSocket, WebSocketDi
 from pydantic import BaseModel
 
 from crew.interruption_engine import process_transcript_chunk
+from crew.interview_conductor import (
+    build_introduction_turns,
+    generate_next_turn,
+    generate_recommended_answer,
+)
 from crew.interview_crew import run_final_judge
 from models.session_manager import SessionManager
 from services.github_service import get_github_footprint
@@ -29,12 +34,26 @@ SCORECARD_FIELDS = [
     "overall_assessment",
     "biggest_red_flags",
     "mandatory_repair_steps",
+    "overall_score",
+    "technical_score",
+    "problem_solving_score",
+    "communication_score",
+    "project_knowledge_score",
+    "behavioral_score",
+    "practical_experience_score",
+    "confidence_score",
+    "strengths",
+    "weaknesses",
+    "areas_to_improve",
+    "final_recommendation",
 ]
 
 
 class SessionStartRequest(BaseModel):
     candidate_name: str
     github_username: str | None = None
+    target_role: str | None = None
+    previous_topics: list[str] = []
 
 
 def _build_scorecard(judge_output) -> dict:
@@ -63,6 +82,8 @@ def start_session(payload: SessionStartRequest):
     context = session_manager.create_session()
     context.candidate_name = payload.candidate_name
     context.github_username = payload.github_username
+    context.target_role = payload.target_role
+    context.previous_topics = payload.previous_topics
 
     if payload.github_username:
         context.github_data = get_github_footprint(payload.github_username)
@@ -86,6 +107,8 @@ def end_session(session_id: str):
         "session_id": session_id,
         "scorecard": scorecard,
         "summary": context.to_summary_dict(),
+        "transcript": context.conversation_history,
+        "topics_covered": context.topics_covered,
     }
 
     # This really is the end of the interview, per the phase 9 ordering.
@@ -138,6 +161,32 @@ async def analyze_speech_route(file: UploadFile):
     return result
 
 
+async def _kick_off_conversation(websocket: WebSocket, context) -> None:
+    """Pushes the panel introductions + opening question immediately on
+    connect, before waiting for anything from the candidate -- matches a real
+    panel interview where the interviewers introduce themselves first."""
+    if context.interview_state != "introductions":
+        return  # a client reconnecting mid-interview shouldn't replay this
+
+    turns = build_introduction_turns()
+    for turn in turns:
+        await websocket.send_json(turn)
+
+    kickoff = turns[-1]
+    context.interview_state = "interviewing"
+    context.turns_taken = 1
+    context.topics_covered.append(kickoff["topic"])
+    context.last_question = {
+        "speaker": kickoff["speaker"],
+        "question": kickoff["text"],
+        "topic": kickoff["topic"],
+        "difficulty": kickoff["difficulty"],
+    }
+    context.add_interviewer_turn(
+        kickoff["speaker"], kickoff["text"], kickoff["topic"], kickoff["difficulty"]
+    )
+
+
 @router.websocket("/ws/{session_id}")
 async def websocket_session(websocket: WebSocket, session_id: str):
     context = session_manager.get_session(session_id)
@@ -147,6 +196,8 @@ async def websocket_session(websocket: WebSocket, session_id: str):
 
     await websocket.accept()
     try:
+        await _kick_off_conversation(websocket, context)
+
         while True:
             raw = await websocket.receive_text()
 
@@ -167,6 +218,43 @@ async def websocket_session(websocket: WebSocket, session_id: str):
                 # blocking the event loop for other connections.
                 event = await asyncio.to_thread(process_transcript_chunk, context, text)
                 await websocket.send_json(event)
+
+                if context.interview_state == "interviewing" and context.last_question is not None:
+                    answered_question = context.last_question
+
+                    recommendation = await asyncio.to_thread(
+                        generate_recommended_answer, context, answered_question, text
+                    )
+                    await websocket.send_json({"type": "recommended_answer", **recommendation})
+
+                    turn = await asyncio.to_thread(generate_next_turn, context)
+                    context.turns_taken += 1
+                    if turn.get("topic"):
+                        context.topics_covered.append(turn["topic"])
+
+                    if turn.get("state") == "complete":
+                        context.interview_state = "complete"
+                        context.last_question = None
+                        await websocket.send_json(
+                            {
+                                "type": "interview_complete",
+                                "message": (
+                                    "That's everything from the panel -- whenever "
+                                    "you're ready, end the session to see your read."
+                                ),
+                            }
+                        )
+                    else:
+                        context.add_interviewer_turn(
+                            turn["speaker"], turn["text"], turn.get("topic"), turn.get("difficulty")
+                        )
+                        context.last_question = {
+                            "speaker": turn["speaker"],
+                            "question": turn["text"],
+                            "topic": turn.get("topic"),
+                            "difficulty": turn.get("difficulty"),
+                        }
+                        await websocket.send_json({"type": "interviewer_turn", **turn})
             except WebSocketDisconnect:
                 raise
             except Exception as exc:

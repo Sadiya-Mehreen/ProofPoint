@@ -66,6 +66,7 @@ export default defineConfig({
       '/api': {
         target: process.env.API_SERVER_URL || 'http://localhost:8080',
         changeOrigin: true,
+        ws: true,
       },
     },
   },

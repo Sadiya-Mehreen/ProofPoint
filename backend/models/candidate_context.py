@@ -15,6 +15,7 @@ def _now_iso() -> str:
 class CandidateContext(BaseModel):
     session_id: str
     candidate_name: str | None = None
+    target_role: str | None = None
     resume_text: str = ""
     github_username: str | None = None
     github_data: dict = Field(default_factory=dict)
@@ -25,11 +26,34 @@ class CandidateContext(BaseModel):
     final_scorecard: dict = Field(default_factory=dict)
     created_at: str = Field(default_factory=_now_iso)
 
+    # Live conversational-interview state (crew/interview_conductor.py) --
+    # distinct from the always-on integrity critique pipeline above, which
+    # reacts to transcript chunks after the fact rather than driving them.
+    interview_state: str = "introductions"
+    turns_taken: int = 0
+    topics_covered: list[str] = Field(default_factory=list)
+    previous_topics: list[str] = Field(default_factory=list)
+    last_question: dict | None = None
+
     def add_transcript_chunk(self, text: str) -> None:
         self.conversation_history.append(
             {"role": "candidate", "text": text, "timestamp": _now_iso()}
         )
         self.current_transcript = text
+
+    def add_interviewer_turn(
+        self, speaker: str, text: str, topic: str | None, difficulty: str | None
+    ) -> None:
+        self.conversation_history.append(
+            {
+                "role": "interviewer",
+                "speaker": speaker,
+                "text": text,
+                "topic": topic,
+                "difficulty": difficulty,
+                "timestamp": _now_iso(),
+            }
+        )
 
     def add_agent_finding(self, agent: str, finding: str, severity: str) -> None:
         self.agent_findings.append(

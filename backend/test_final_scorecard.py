@@ -60,6 +60,18 @@ FULL_VALID_JUDGE_OUTPUT = {
     "overall_assessment": "Strong candidate.",
     "biggest_red_flags": [],
     "mandatory_repair_steps": [],
+    "overall_score": 84,
+    "technical_score": 87,
+    "problem_solving_score": 91,
+    "communication_score": 76,
+    "project_knowledge_score": 89,
+    "behavioral_score": 80,
+    "practical_experience_score": 83,
+    "confidence_score": 78,
+    "strengths": ["Strong technical reasoning", "Good project ownership"],
+    "weaknesses": ["Answers could be more structured"],
+    "areas_to_improve": ["Quantify outcomes more often"],
+    "final_recommendation": "Recommend advancing to the next round.",
 }
 
 

@@ -14,6 +14,13 @@ import {
   BackendRequestError,
   BackendUnavailableError,
 } from "../lib/backend-client";
+import {
+  getSessionMeta,
+  ownsSession,
+  registerSessionOwner,
+  releaseSession,
+} from "../lib/session-ownership";
+import { getPreviousTopicsForUser, saveInterview } from "../lib/interview-history-store";
 
 const router: IRouter = Router();
 const upload = multer({
@@ -21,23 +28,22 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-// The Python backend has no concept of users -- its session store is keyed
-// only by an opaque session_id. This map ties each session back to the
-// signed-in user who started it, so one account can't read or end another
-// account's session just by guessing/observing its id. It lives only as long
-// as the process, same as the Python backend's in-memory SessionManager.
-const sessionOwners = new Map<string, string>();
-
-function ownsSession(sessionId: string, userId: string): boolean {
-  return sessionOwners.get(sessionId) === userId;
-}
-
+// Matches backend/crew/interview_conductor.py's INTERVIEWERS roster exactly --
+// "speaker" values on live WebSocket events (interviewer_turn, etc.) are
+// these same lowercase names.
 const agents = [
-  { name: "Alex", role: "Communication", color: "#8b5cf6", status: "listening" },
-  { name: "Dave", role: "Technical depth", color: "#2dd4bf", status: "ready" },
-  { name: "Sarah", role: "Clarity & English", color: "#f59e0b", status: "ready" },
-  { name: "Marcus", role: "Evidence check", color: "#fb7185", status: "ready" },
-  { name: "Judge", role: "Final assessment", color: "#60a5fa", status: "observing" },
+  { name: "Sarah", role: "HR", color: "#f59e0b", status: "listening" },
+  { name: "Alex", role: "Technical", color: "#8b5cf6", status: "ready" },
+  { name: "Dave", role: "Projects", color: "#2dd4bf", status: "ready" },
+  // Doesn't ask questions live -- checks domain/business-pitch plausibility
+  // in the background, same as Sarah/Alex/Dave's critique-agent halves do.
+  // status: "background" is a signal to the frontend to render this pill
+  // visually distinct (dashed, muted) from the three live interviewers.
+  { name: "Marcus", role: "Evidence check", color: "#fb7185", status: "background" },
+  // Only weighs in when the panel's live findings hit "high" severity (see
+  // crew/interruption_engine.py's should_run_judge) -- otherwise silent
+  // until the end-of-session scorecard. Same background treatment as Marcus.
+  { name: "Judge", role: "Weighs in on serious flags", color: "#60a5fa", status: "background" },
 ];
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -50,6 +56,14 @@ function asString(value: unknown, fallback = ""): string {
 
 function asNumber(value: unknown, fallback = 0): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function asNumberOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function asStringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
 }
 
 function asStringArray(value: unknown): string[] {
@@ -115,10 +129,14 @@ router.post("/session/start", async (req, res) => {
   }
 
   try {
+    const previousTopics = getPreviousTopicsForUser(req.user!.id);
+
     const backendResponse = asRecord(
       await backendPostJson("/session/start", {
         candidate_name: input.data.candidateName,
         github_username: input.data.githubUsername || null,
+        target_role: input.data.targetRole,
+        previous_topics: previousTopics,
       }),
     );
 
@@ -128,12 +146,20 @@ router.post("/session/start", async (req, res) => {
       return;
     }
 
-    sessionOwners.set(sessionId, req.user!.id);
+    registerSessionOwner(sessionId, {
+      userId: req.user!.id,
+      candidateName: input.data.candidateName,
+      targetRole: input.data.targetRole,
+      startedAt: new Date().toISOString(),
+    });
 
     res.json({
       sessionId,
       status: "live",
-      openingPrompt: `Hi ${input.data.candidateName}, let’s begin. Tell us about a project you're proud of and the problem it solved.`,
+      // The real opening line comes from the live WebSocket's introduction
+      // sequence (backend/crew/interview_conductor.py's build_introduction_turns)
+      // moments after connecting -- this is just what's shown before that arrives.
+      openingPrompt: "The panel is joining the room. Listen for their introductions, then you'll be asked to introduce yourself.",
       agents,
     });
   } catch (err) {
@@ -153,28 +179,51 @@ router.post("/session/:sessionId/end", async (req, res) => {
   }
 
   try {
+    const meta = getSessionMeta(input.data.sessionId);
     const backendResponse = asRecord(
       await backendPostEmpty(`/session/${encodeURIComponent(input.data.sessionId)}/end`),
     );
     const scorecard = asRecord(backendResponse["scorecard"]);
-    sessionOwners.delete(input.data.sessionId);
+    const transcript = Array.isArray(backendResponse["transcript"]) ? backendResponse["transcript"] : [];
+    const topics = asStringArray(backendResponse["topics_covered"]);
+    releaseSession(input.data.sessionId);
 
-    res.json({
+    const responseScorecard = {
       sessionId: asString(backendResponse["session_id"], input.data.sessionId),
       overallAssessment: asString(
         scorecard["overall_assessment"],
         "The panel didn't reach a final verdict for this session.",
       ),
       dimensions: [
-        { label: "Reality vs. resume", note: asString(scorecard["reality_vs_resume"], "Not assessed.") },
-        { label: "Technical integrity", note: asString(scorecard["technical_integrity"], "Not assessed.") },
-        { label: "Communication", note: asString(scorecard["communication"], "Not assessed.") },
-        { label: "Domain strategy", note: asString(scorecard["domain_strategy"], "Not assessed.") },
+        { label: "Technical knowledge", note: asString(scorecard["technical_integrity"], "Not assessed."), score: asNumberOrNull(scorecard["technical_score"]) },
+        { label: "Problem solving", note: asString(scorecard["domain_strategy"], "Not assessed."), score: asNumberOrNull(scorecard["problem_solving_score"]) },
+        { label: "Communication", note: asString(scorecard["communication"], "Not assessed."), score: asNumberOrNull(scorecard["communication_score"]) },
+        { label: "Project knowledge", note: asString(scorecard["reality_vs_resume"], "Not assessed."), score: asNumberOrNull(scorecard["project_knowledge_score"]) },
+        { label: "Behavioral", note: "See overall assessment for details.", score: asNumberOrNull(scorecard["behavioral_score"]) },
+        { label: "Practical experience", note: "See overall assessment for details.", score: asNumberOrNull(scorecard["practical_experience_score"]) },
+        { label: "Confidence & clarity", note: "See overall assessment for details.", score: asNumberOrNull(scorecard["confidence_score"]) },
       ],
       redFlags: asStringArray(scorecard["biggest_red_flags"]),
       mandatoryRepairSteps: asStringArray(scorecard["mandatory_repair_steps"]),
       parseWarning: scorecard["parse_warning"] === true,
+      overallScore: asNumberOrNull(scorecard["overall_score"]),
+      strengths: asStringArray(scorecard["strengths"]),
+      weaknesses: asStringArray(scorecard["weaknesses"]),
+      areasToImprove: asStringArray(scorecard["areas_to_improve"]),
+      finalRecommendation: asStringOrNull(scorecard["final_recommendation"]),
+    };
+
+    const interviewId = saveInterview({
+      userId: req.user!.id,
+      candidateName: meta?.candidateName || "Candidate",
+      targetRole: meta?.targetRole ?? null,
+      startedAt: meta?.startedAt || new Date().toISOString(),
+      scorecard: responseScorecard,
+      transcript,
+      topics,
     });
+
+    res.json({ ...responseScorecard, interviewId });
   } catch (err) {
     handleBackendError(err, res, "This session was not found or has already ended.");
   }
