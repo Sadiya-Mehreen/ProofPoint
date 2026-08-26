@@ -4,7 +4,7 @@
   "buildCommand": "pnpm --filter @workspace/auracheck... run build",
   "outputDirectory": "artifacts/auracheck/dist/public",
   "env": {
-    "VITE_API_BASE_URL": "https://auracheck-api-server.onrender.com"
+    "VITE_API_BASE_URL": "https://api-server-production-582a.up.railway.app"
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
