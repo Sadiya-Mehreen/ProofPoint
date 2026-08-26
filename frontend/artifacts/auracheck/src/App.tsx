@@ -57,7 +57,8 @@ import {
   useStartSession,
   useUploadResume,
 } from '@workspace/api-client-react';
-import type { AuthUser, InterviewSummary } from '@workspace/api-client-react';
+import type { AuthUser, InterviewDetail, InterviewSummary } from '@workspace/api-client-react';
+import { jsPDF } from 'jspdf';
 import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
 import NotFound from '@/pages/not-found';
 
@@ -749,14 +750,117 @@ function Interview() {
       <aside className="rounded-[25px] border border-[#e2dcd3] bg-[#fbf8f2] p-5 sm:p-6"><div className="flex items-center justify-between"><div><SectionLabel>Panel notes</SectionLabel><h2 className="font-display text-[27px]">In the room</h2></div><UsersRound size={19} className="text-[#a379bb]" /></div><div className="mt-6 space-y-3">{session.agents.map((agent, i) => { const isBackground = agent.status === 'background'; return <div key={agent.name} className={`rounded-2xl border p-3.5 transition-colors ${agent.name.toLowerCase() === currentSpeaker ? 'border-[#c7aee0] bg-[#f4edf9]' : isBackground ? 'border-dashed border-[#e9e2da] bg-[#f8f4ee] opacity-80' : 'border-[#e9e2da] bg-[#f8f4ee]'}`} data-testid={`card-panel-agent-${i}`} title={isBackground ? `${agent.name} checks evidence in the background -- doesn't ask questions live` : undefined}><div className="flex items-center gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold" style={{ backgroundColor: `${agent.color}25`, color: agent.color }}>{agent.name[0]}</div><div className="flex-1"><div className="text-[11px] font-semibold text-[#504b58]">{agent.name}{isBackground && <span className="ml-1.5 font-mono-ui text-[8px] font-normal uppercase tracking-wide text-[#a39fa8]">background</span>}</div><div className="mt-0.5 text-[10px] text-[#979097]">{agent.role}</div></div><div className={`h-1.5 w-1.5 rounded-full ${activeAgents.has(agent.name.toLowerCase()) ? 'bg-[#bd5e50]' : 'bg-[#7db397]'}`} /></div></div>; })}</div>{findings.length > 0 && <div className="mt-4 max-h-[280px] space-y-2 overflow-y-auto pr-1" data-testid="list-live-findings">{findings.map((f) => { const s = severityStyle(f.severity); return <div key={f.id} className={`rounded-xl ${s.bg} p-3`} data-testid={`card-finding-${f.id}`}><div className={`text-[10px] font-semibold uppercase tracking-wide ${s.text}`}>{f.agent} · {f.severity}</div><p className={`mt-1 text-[11px] leading-5 ${s.text}`}>{f.finding}</p></div>; })}</div>}<div className="mt-6 rounded-2xl border border-[#d5e6dc] bg-[#e9f3ed] p-4"><div className="flex gap-2 text-[#477e6d]"><ShieldCheck size={15} /><span className="text-[11px] font-semibold">Evidence cross-check on</span></div><p className="mt-2 text-[10px] leading-4 text-[#759086]">We’ll gently flag where your story can be backed by your resume or public work.</p></div><button onClick={end} disabled={ending} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-[#dfd3de] bg-[#f9f0f8] py-3 text-[11px] font-semibold text-[#825f99] transition-colors hover:bg-[#eadcf0] disabled:opacity-60" data-testid="button-end-session">{ending ? <LoaderCircle size={15} className="animate-spin" /> : <Square size={13} fill="currentColor" />} {ending ? 'Generating your read…' : 'End session & see my read'}</button>{endError && <p className="mt-3 text-center text-[10px] leading-4 text-[#a35a5a]" data-testid="text-end-error">{endError}</p>}</aside></div></div></div>;
 }
 
-function downloadJson(filename: string, data: unknown): void {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+function generateScorecardPdf(detail: InterviewDetail): void {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 18;
+  const contentWidth = pageWidth - marginX * 2;
+  let y = 20;
+
+  const ensureSpace = (needed: number) => {
+    if (y + needed > pageHeight - 15) {
+      doc.addPage();
+      y = 20;
+    }
+  };
+
+  const addHeading = (text: string) => {
+    ensureSpace(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text(text, marginX, y);
+    y += 7;
+  };
+
+  const addParagraph = (text: string, size = 10) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(size);
+    const lines = doc.splitTextToSize(text, contentWidth);
+    for (const line of lines) {
+      ensureSpace(6);
+      doc.text(line, marginX, y);
+      y += 5.5;
+    }
+    y += 2;
+  };
+
+  const addBulletList = (items: string[]) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    for (const item of items) {
+      const lines = doc.splitTextToSize(`•  ${item}`, contentWidth);
+      for (const line of lines) {
+        ensureSpace(6);
+        doc.text(line, marginX, y);
+        y += 5.5;
+      }
+    }
+    y += 2;
+  };
+
+  const { scorecard } = detail;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.text('AuraCheck Scorecard', marginX, y);
+  y += 10;
+
+  addParagraph(
+    `${detail.candidateName}${detail.targetRole ? ` · ${detail.targetRole}` : ''}  —  ${new Date(detail.endedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`,
+    11,
+  );
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  ensureSpace(10);
+  doc.text(`Overall score: ${scorecard.overallScore ?? '—'}${scorecard.overallScore != null ? '/100' : ''}`, marginX, y);
+  y += 10;
+
+  if (scorecard.overallAssessment) {
+    addHeading('Overall assessment');
+    addParagraph(scorecard.overallAssessment);
+  }
+
+  if (scorecard.dimensions.length > 0) {
+    addHeading('Dimensions');
+    for (const dim of scorecard.dimensions) {
+      addParagraph(`${dim.label}: ${dim.score ?? '—'}${dim.score != null ? '/100' : ''}`, 10.5);
+      if (dim.note) addParagraph(dim.note, 9.5);
+    }
+  }
+
+  if (scorecard.strengths.length > 0) {
+    addHeading('Strengths');
+    addBulletList(scorecard.strengths);
+  }
+
+  if (scorecard.weaknesses.length > 0) {
+    addHeading('Weaknesses');
+    addBulletList(scorecard.weaknesses);
+  }
+
+  if (scorecard.areasToImprove.length > 0) {
+    addHeading('Areas to improve');
+    addBulletList(scorecard.areasToImprove);
+  }
+
+  if (scorecard.redFlags.length > 0) {
+    addHeading('Red flags');
+    addBulletList(scorecard.redFlags);
+  }
+
+  if (scorecard.mandatoryRepairSteps.length > 0) {
+    addHeading('Mandatory repair steps');
+    addBulletList(scorecard.mandatoryRepairSteps);
+  }
+
+  if (scorecard.finalRecommendation) {
+    addHeading('Final recommendation');
+    addParagraph(scorecard.finalRecommendation);
+  }
+
+  doc.save(`auracheck-scorecard-${detail.id}.pdf`);
 }
 
 function ScorecardListPage() {
@@ -781,7 +885,7 @@ function ScorecardListPage() {
     setDownloadingId(interview.id);
     try {
       const detail = await getInterview(interview.id);
-      downloadJson(`auracheck-scorecard-${interview.id}.json`, detail);
+      generateScorecardPdf(detail);
     } catch {
       window.alert('Could not download this scorecard. Please try again.');
     } finally {
