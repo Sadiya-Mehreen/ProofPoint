@@ -1,0 +1,444 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Account signup, login, and session operations
+  - name: sessions
+    description: Interview session operations
+  - name: candidate
+    description: Candidate setup and evidence
+paths:
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Create an account
+      description: Creates a new account and signs the caller in (sets a session cookie).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupInput"
+      responses:
+        "200":
+          description: Account created and signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Sign in
+      description: Verifies credentials and signs the caller in (sets a session cookie).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Sign out
+      description: Clears the caller's session cookie.
+      responses:
+        "204":
+          description: Signed out
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get the signed-in account
+      description: Returns the account for the current session cookie, or 401 if not signed in.
+      responses:
+        "200":
+          description: The signed-in account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /session/start:
+    post:
+      operationId: startSession
+      tags: [sessions]
+      summary: Start a live interview session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionStartInput"
+      responses:
+        "200":
+          description: Session started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+  /session/{sessionId}/end:
+    post:
+      operationId: endSession
+      tags: [sessions]
+      summary: End a live interview and generate scorecard
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Final scorecard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scorecard"
+  /resume/upload:
+    post:
+      operationId: uploadResume
+      tags: [candidate]
+      summary: Upload and parse a candidate resume
+      description: >-
+        Attaches a resume file to an already-started session (see
+        POST /session/start) and returns a lightweight profile extracted
+        from it.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/ResumeUploadInput"
+      responses:
+        "200":
+          description: Parsed candidate profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateProfile"
+  /github/{username}:
+    get:
+      operationId: getGithubFootprint
+      tags: [candidate]
+      summary: Analyze a public GitHub footprint
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: GitHub evidence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GithubFootprint"
+  /interviews:
+    get:
+      operationId: listInterviews
+      tags: [sessions]
+      summary: List the signed-in candidate's past interviews
+      responses:
+        "200":
+          description: Interview history, most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InterviewSummary"
+  /interviews/{interviewId}:
+    get:
+      operationId: getInterview
+      tags: [sessions]
+      summary: Get one past interview's full detail
+      parameters:
+        - $ref: "#/components/parameters/InterviewId"
+      responses:
+        "200":
+          description: Full interview detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewDetail"
+components:
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+    InterviewId:
+      name: interviewId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    SignupInput:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: string
+        password:
+          type: string
+          minLength: 8
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+    AuthUser:
+      type: object
+      required: [id, name, email]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+    SessionStartInput:
+      type: object
+      required: [candidateName, targetRole]
+      properties:
+        candidateName:
+          type: string
+        targetRole:
+          type: string
+        githubUsername:
+          type: ["string", "null"]
+        resumeName:
+          type: ["string", "null"]
+    Session:
+      type: object
+      required: [sessionId, status, openingPrompt, agents]
+      properties:
+        sessionId:
+          type: string
+        status:
+          type: string
+        openingPrompt:
+          type: string
+        agents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Agent"
+    Agent:
+      type: object
+      required: [name, role, color, status]
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+        color:
+          type: string
+        status:
+          type: string
+    Scorecard:
+      type: object
+      description: >-
+        The panel judge's read on the candidate: a narrative assessment per
+        dimension, concrete red flags and repair steps, plus a numeric
+        overall/per-dimension score, strengths, weaknesses, and a final
+        recommendation synthesized from the complete interview conversation.
+      required:
+        - sessionId
+        - interviewId
+        - overallAssessment
+        - dimensions
+        - redFlags
+        - mandatoryRepairSteps
+        - parseWarning
+        - overallScore
+        - strengths
+        - weaknesses
+        - areasToImprove
+        - finalRecommendation
+      properties:
+        sessionId:
+          type: string
+        interviewId:
+          type: string
+          description: Id of the persisted interview-history record for this session.
+        overallAssessment:
+          type: string
+        dimensions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreDimension"
+        redFlags:
+          type: array
+          items:
+            type: string
+        mandatoryRepairSteps:
+          type: array
+          items:
+            type: string
+        parseWarning:
+          type: boolean
+          description: True if the judge's output was missing one or more expected fields.
+        overallScore:
+          type: ["number", "null"]
+        strengths:
+          type: array
+          items:
+            type: string
+        weaknesses:
+          type: array
+          items:
+            type: string
+        areasToImprove:
+          type: array
+          items:
+            type: string
+        finalRecommendation:
+          type: ["string", "null"]
+    ScoreDimension:
+      type: object
+      required: [label, note, score]
+      properties:
+        label:
+          type: string
+        note:
+          type: string
+        score:
+          type: ["number", "null"]
+    InterviewSummary:
+      type: object
+      required: [id, candidateName, targetRole, startedAt, endedAt, overallScore]
+      properties:
+        id:
+          type: string
+        candidateName:
+          type: string
+        targetRole:
+          type: ["string", "null"]
+        startedAt:
+          type: string
+        endedAt:
+          type: string
+        overallScore:
+          type: ["number", "null"]
+    InterviewDetail:
+      type: object
+      required: [id, candidateName, targetRole, startedAt, endedAt, scorecard, transcript, topics]
+      properties:
+        id:
+          type: string
+        candidateName:
+          type: string
+        targetRole:
+          type: ["string", "null"]
+        startedAt:
+          type: string
+        endedAt:
+          type: string
+        scorecard:
+          $ref: "#/components/schemas/Scorecard"
+        transcript:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptEntry"
+        topics:
+          type: array
+          items:
+            type: string
+    TranscriptEntry:
+      type: object
+      required: [role, text]
+      properties:
+        role:
+          type: string
+          description: '"candidate" or "interviewer"'
+        speaker:
+          type: ["string", "null"]
+        text:
+          type: string
+        topic:
+          type: ["string", "null"]
+        difficulty:
+          type: ["string", "null"]
+    CandidateProfile:
+      type: object
+      required: [name, headline, skills, experience]
+      properties:
+        name:
+          type: string
+        headline:
+          type: string
+        skills:
+          type: array
+          items:
+            type: string
+        experience:
+          type: string
+    GithubFootprint:
+      type: object
+      required: [username, repositories, topLanguages, summary]
+      properties:
+        username:
+          type: string
+        repositories:
+          type: number
+        topLanguages:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+    ResumeUploadInput:
+      type: object
+      required: [sessionId, file]
+      properties:
+        sessionId:
+          type: string
+        file:
+          type: string
+          format: binary
+
