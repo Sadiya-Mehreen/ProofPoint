@@ -4,17 +4,7 @@ import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
-
-const sessionSecret = process.env["SESSION_SECRET"];
-
-if (!sessionSecret) {
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("SESSION_SECRET environment variable is required in production.");
-  }
-  logger.warn(
-    "SESSION_SECRET is not set -- using a random per-process secret. Signed-in sessions will not survive a server restart. Set SESSION_SECRET for a stable local dev session too.",
-  );
-}
+import { sessionSecret } from "./lib/session-secret";
 
 const app: Express = express();
 
@@ -22,7 +12,7 @@ const app: Express = express();
 // X-Forwarded-Proto so secure cookies work correctly.
 app.set("trust proxy", 1);
 
-app.use(cookieParser(sessionSecret || crypto.randomUUID()));
+app.use(cookieParser(sessionSecret));
 app.use(
   pinoHttp({
     logger,

@@ -162,10 +162,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GithubFootprint"
+  /interviews:
+    get:
+      operationId: listInterviews
+      tags: [sessions]
+      summary: List the signed-in candidate's past interviews
+      responses:
+        "200":
+          description: Interview history, most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InterviewSummary"
+  /interviews/{interviewId}:
+    get:
+      operationId: getInterview
+      tags: [sessions]
+      summary: Get one past interview's full detail
+      parameters:
+        - $ref: "#/components/parameters/InterviewId"
+      responses:
+        "200":
+          description: Full interview detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewDetail"
 components:
   parameters:
     SessionId:
       name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+    InterviewId:
+      name: interviewId
       in: path
       required: true
       schema:
@@ -249,13 +283,29 @@ components:
     Scorecard:
       type: object
       description: >-
-        The panel judge's qualitative read on the candidate. There is no
-        numeric score -- the judge produces a narrative assessment per
-        dimension plus concrete red flags and repair steps.
-      required: [sessionId, overallAssessment, dimensions, redFlags, mandatoryRepairSteps, parseWarning]
+        The panel judge's read on the candidate: a narrative assessment per
+        dimension, concrete red flags and repair steps, plus a numeric
+        overall/per-dimension score, strengths, weaknesses, and a final
+        recommendation synthesized from the complete interview conversation.
+      required:
+        - sessionId
+        - interviewId
+        - overallAssessment
+        - dimensions
+        - redFlags
+        - mandatoryRepairSteps
+        - parseWarning
+        - overallScore
+        - strengths
+        - weaknesses
+        - areasToImprove
+        - finalRecommendation
       properties:
         sessionId:
           type: string
+        interviewId:
+          type: string
+          description: Id of the persisted interview-history record for this session.
         overallAssessment:
           type: string
         dimensions:
@@ -273,14 +323,87 @@ components:
         parseWarning:
           type: boolean
           description: True if the judge's output was missing one or more expected fields.
+        overallScore:
+          type: ["number", "null"]
+        strengths:
+          type: array
+          items:
+            type: string
+        weaknesses:
+          type: array
+          items:
+            type: string
+        areasToImprove:
+          type: array
+          items:
+            type: string
+        finalRecommendation:
+          type: ["string", "null"]
     ScoreDimension:
       type: object
-      required: [label, note]
+      required: [label, note, score]
       properties:
         label:
           type: string
         note:
           type: string
+        score:
+          type: ["number", "null"]
+    InterviewSummary:
+      type: object
+      required: [id, candidateName, targetRole, startedAt, endedAt, overallScore]
+      properties:
+        id:
+          type: string
+        candidateName:
+          type: string
+        targetRole:
+          type: ["string", "null"]
+        startedAt:
+          type: string
+        endedAt:
+          type: string
+        overallScore:
+          type: ["number", "null"]
+    InterviewDetail:
+      type: object
+      required: [id, candidateName, targetRole, startedAt, endedAt, scorecard, transcript, topics]
+      properties:
+        id:
+          type: string
+        candidateName:
+          type: string
+        targetRole:
+          type: ["string", "null"]
+        startedAt:
+          type: string
+        endedAt:
+          type: string
+        scorecard:
+          $ref: "#/components/schemas/Scorecard"
+        transcript:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptEntry"
+        topics:
+          type: array
+          items:
+            type: string
+    TranscriptEntry:
+      type: object
+      required: [role, text]
+      properties:
+        role:
+          type: string
+          description: '"candidate" or "interviewer"'
+        speaker:
+          type: ["string", "null"]
+        text:
+          type: string
+        topic:
+          type: ["string", "null"]
+        difficulty:
+          type: ["string", "null"]
     CandidateProfile:
       type: object
       required: [name, headline, skills, experience]

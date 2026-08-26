@@ -54,19 +54,65 @@ export interface Session {
 export interface ScoreDimension {
   label: string;
   note: string;
+  /** @nullable */
+  score: number | null;
 }
 
 /**
- * The panel judge's qualitative read on the candidate. There is no numeric score -- the judge produces a narrative assessment per dimension plus concrete red flags and repair steps.
+ * The panel judge's read on the candidate: a narrative assessment per dimension, concrete red flags and repair steps, plus a numeric overall/per-dimension score, strengths, weaknesses, and a final recommendation synthesized from the complete interview conversation.
  */
 export interface Scorecard {
   sessionId: string;
+  /** Id of the persisted interview-history record for this session. */
+  interviewId: string;
   overallAssessment: string;
   dimensions: ScoreDimension[];
   redFlags: string[];
   mandatoryRepairSteps: string[];
   /** True if the judge's output was missing one or more expected fields. */
   parseWarning: boolean;
+  /** @nullable */
+  overallScore: number | null;
+  strengths: string[];
+  weaknesses: string[];
+  areasToImprove: string[];
+  /** @nullable */
+  finalRecommendation: string | null;
+}
+
+export interface InterviewSummary {
+  id: string;
+  candidateName: string;
+  /** @nullable */
+  targetRole: string | null;
+  startedAt: string;
+  endedAt: string;
+  /** @nullable */
+  overallScore: number | null;
+}
+
+export interface TranscriptEntry {
+  /** "candidate" or "interviewer" */
+  role: string;
+  /** @nullable */
+  speaker?: string | null;
+  text: string;
+  /** @nullable */
+  topic?: string | null;
+  /** @nullable */
+  difficulty?: string | null;
+}
+
+export interface InterviewDetail {
+  id: string;
+  candidateName: string;
+  /** @nullable */
+  targetRole: string | null;
+  startedAt: string;
+  endedAt: string;
+  scorecard: Scorecard;
+  transcript: TranscriptEntry[];
+  topics: string[];
 }
 
 export interface CandidateProfile {

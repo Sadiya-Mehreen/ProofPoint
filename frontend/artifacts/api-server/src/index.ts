@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { attachInterviewWebSocketProxy } from "./lib/ws-proxy";
 
 const rawPort = process.env["PORT"];
 
@@ -18,6 +19,8 @@ if (Number.isNaN(port) || port <= 0 || port >= 65536) {
 const server = app.listen(port, () => {
   logger.info({ port }, "Server listening");
 });
+
+attachInterviewWebSocketProxy(server);
 
 server.on("error", (err) => {
   logger.error({ err }, "Error listening on port");

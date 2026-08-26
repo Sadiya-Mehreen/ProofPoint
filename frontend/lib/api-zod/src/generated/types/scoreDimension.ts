@@ -9,4 +9,6 @@
 export interface ScoreDimension {
   label: string;
   note: string;
+  /** @nullable */
+  score: number | null;
 }
