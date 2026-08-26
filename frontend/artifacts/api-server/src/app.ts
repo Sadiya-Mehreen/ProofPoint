@@ -32,7 +32,25 @@ app.use(
     },
   }),
 );
-app.use(cors());
+// FRONTEND_ORIGIN is required in production because a signed cross-origin
+// cookie (see lib/session-cookie.ts) needs `credentials: true` here, and the
+// `cors` package refuses to pair that with a wildcard origin. Comma-separated
+// to allow more than one deployed frontend origin (e.g. a preview + prod URL).
+const allowedOrigins = (process.env["FRONTEND_ORIGIN"] || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+if (allowedOrigins.length === 0 && process.env.NODE_ENV === "production") {
+  throw new Error("FRONTEND_ORIGIN environment variable is required in production.");
+}
+
+app.use(
+  cors({
+    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
