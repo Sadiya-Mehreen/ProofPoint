@@ -557,8 +557,14 @@ function Interview() {
   // -- see backend/crew/interview_conductor.py and backend/api/routes.py.
   useEffect(() => {
     if (session.sessionId === 'demo-aura-session') return;
-    const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
-    const ws = new WebSocket(`${proto}${location.host}/api/ws/${encodeURIComponent(session.sessionId)}`);
+    // In production the api-server can live on a different origin than this
+    // static build (e.g. Vercel frontend, Render api-server) -- VITE_API_BASE_URL
+    // points the WS handshake there instead of assuming same-origin.
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
+    const wsOrigin = apiBaseUrl
+      ? `${apiBaseUrl.startsWith('https:') ? 'wss:' : 'ws:'}//${new URL(apiBaseUrl).host}`
+      : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
+    const ws = new WebSocket(`${wsOrigin}/api/ws/${encodeURIComponent(session.sessionId)}`);
     wsRef.current = ws;
 
     ws.onopen = () => setWsStatus('open');
