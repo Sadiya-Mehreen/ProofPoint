@@ -52,3 +52,5 @@ Thumbs.db
 /artifacts/api-server/data/
 *.sqlite
 *.sqlite3
+.vercel
+.env*
