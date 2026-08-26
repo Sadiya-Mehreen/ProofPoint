@@ -26,14 +26,28 @@ class CandidateContext(BaseModel):
     final_scorecard: dict = Field(default_factory=dict)
     created_at: str = Field(default_factory=_now_iso)
 
-    # Live conversational-interview state (crew/interview_conductor.py) --
-    # distinct from the always-on integrity critique pipeline above, which
-    # reacts to transcript chunks after the fact rather than driving them.
-    interview_state: str = "introductions"
-    turns_taken: int = 0
-    topics_covered: list[str] = Field(default_factory=list)
-    previous_topics: list[str] = Field(default_factory=list)
-    last_question: dict | None = None
+   # Live conversational-interview state
+   # Possible states:
+   # - introductions
+   # - waiting_for_answer
+   # - processing_answer
+   # - completed
+   interview_state: str = "introductions"
+
+   turns_taken: int = 0
+
+   topics_covered: list[str] = Field(default_factory=list)
+
+   previous_topics: list[str] = Field(default_factory=list)
+
+   last_question: dict | None = None
+
+   # Prevent multiple speech-recognition chunks from advancing
+   # the same interview turn.
+   answer_in_progress: bool = False
+
+   # Stores the last candidate answer that was processed.
+   last_processed_answer: str = ""
 
     def add_transcript_chunk(self, text: str) -> None:
         self.conversation_history.append(
