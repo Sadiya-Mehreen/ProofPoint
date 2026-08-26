@@ -95,6 +95,11 @@ export function listInterviewsForUser(userId: string): InterviewSummary[] {
   return rows.map(toSummary);
 }
 
+export function deleteInterviewForUser(userId: string, id: string): boolean {
+  const result = db.prepare("DELETE FROM interviews WHERE id = ? AND user_id = ?").run(id, userId);
+  return result.changes > 0;
+}
+
 export function getInterviewForUser(userId: string, id: string): InterviewDetail | undefined {
   const row = db
     .prepare("SELECT * FROM interviews WHERE id = ? AND user_id = ?")

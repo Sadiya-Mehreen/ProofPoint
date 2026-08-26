@@ -1,4 +1,4 @@
-import { createContext, type ChangeEvent, type ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, type ChangeEvent, type MouseEvent, type ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Form } from '@/components/ui/form';
 import { Toaster } from '@/components/ui/toaster';
@@ -10,6 +10,7 @@ import {
   Bell,
   Check,
   ChevronRight,
+  Download,
   FileText,
   Github,
   Headphones,
@@ -28,6 +29,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Square,
+  Trash2,
   Upload,
   UsersRound,
   Volume2,
@@ -40,7 +42,9 @@ import {
   getGetInterviewQueryKey,
   getHealthCheckQueryKey,
   getGetGithubFootprintQueryKey,
+  getInterview,
   getListInterviewsQueryKey,
+  useDeleteInterview,
   useEndSession,
   useGetCurrentUser,
   useGetGithubFootprint,
@@ -53,7 +57,7 @@ import {
   useStartSession,
   useUploadResume,
 } from '@workspace/api-client-react';
-import type { AuthUser } from '@workspace/api-client-react';
+import type { AuthUser, InterviewSummary } from '@workspace/api-client-react';
 import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
 import NotFound from '@/pages/not-found';
 
@@ -138,6 +142,13 @@ function useAuth() {
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || parts[0]?.[1] || '')).toUpperCase();
+}
+
+function formatHeaderDate(date: Date): string {
+  const weekday = date.toLocaleDateString(undefined, { weekday: 'long' });
+  const day = date.toLocaleDateString(undefined, { day: '2-digit' });
+  const month = date.toLocaleDateString(undefined, { month: 'long' });
+  return `${weekday}, ${day} ${month} ${date.getFullYear()}`;
 }
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -295,7 +306,7 @@ function AppShell({ children }: { children: ReactNode }) {
       {mobileOpen && <button aria-label="Close navigation" className="fixed inset-0 z-30 bg-[#1d1e2a]/60 md:hidden" onClick={() => setMobileOpen(false)} data-testid="button-dismiss-menu" />}
       <div className="min-w-0 md:pl-[238px]">
         <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-[#e5dfd5] bg-[#f5f1e9]/90 px-5 backdrop-blur-md sm:px-8">
-          <div className="flex items-center gap-3"><button className="rounded-lg p-2 text-[#5d5b6b] hover:bg-[#ebe5dc] md:hidden" onClick={() => setMobileOpen(true)} data-testid="button-open-menu"><Menu size={19} /></button><span className="hidden font-mono-ui text-[10px] uppercase tracking-[.18em] text-[#99949b] sm:inline">Monday, 08 April 2024</span></div>
+          <div className="flex items-center gap-3"><button className="rounded-lg p-2 text-[#5d5b6b] hover:bg-[#ebe5dc] md:hidden" onClick={() => setMobileOpen(true)} data-testid="button-open-menu"><Menu size={19} /></button><span className="hidden font-mono-ui text-[10px] uppercase tracking-[.18em] text-[#99949b] sm:inline">{formatHeaderDate(new Date())}</span></div>
           <div className="flex items-center gap-2 sm:gap-4"><button className="relative rounded-xl p-2 text-[#77717d] transition-colors hover:bg-[#ebe5dc]" data-testid="button-notifications"><Bell size={18} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#a374ba]" /></button><div className="hidden h-5 w-px bg-[#dfd8ce] sm:block" /><Link href="/settings" className="flex items-center gap-2 rounded-xl px-2 py-1.5 transition-colors hover:bg-[#ebe5dc]" data-testid="link-header-profile"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d5e9df] font-mono-ui text-[10px] font-medium text-[#326153]">{initials(displayName)}</div><span className="hidden text-[12px] font-semibold text-[#444252] sm:inline">{displayName}</span></Link></div>
         </header>
         <main className="min-w-0">{children}</main>
@@ -738,12 +749,50 @@ function Interview() {
       <aside className="rounded-[25px] border border-[#e2dcd3] bg-[#fbf8f2] p-5 sm:p-6"><div className="flex items-center justify-between"><div><SectionLabel>Panel notes</SectionLabel><h2 className="font-display text-[27px]">In the room</h2></div><UsersRound size={19} className="text-[#a379bb]" /></div><div className="mt-6 space-y-3">{session.agents.map((agent, i) => { const isBackground = agent.status === 'background'; return <div key={agent.name} className={`rounded-2xl border p-3.5 transition-colors ${agent.name.toLowerCase() === currentSpeaker ? 'border-[#c7aee0] bg-[#f4edf9]' : isBackground ? 'border-dashed border-[#e9e2da] bg-[#f8f4ee] opacity-80' : 'border-[#e9e2da] bg-[#f8f4ee]'}`} data-testid={`card-panel-agent-${i}`} title={isBackground ? `${agent.name} checks evidence in the background -- doesn't ask questions live` : undefined}><div className="flex items-center gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold" style={{ backgroundColor: `${agent.color}25`, color: agent.color }}>{agent.name[0]}</div><div className="flex-1"><div className="text-[11px] font-semibold text-[#504b58]">{agent.name}{isBackground && <span className="ml-1.5 font-mono-ui text-[8px] font-normal uppercase tracking-wide text-[#a39fa8]">background</span>}</div><div className="mt-0.5 text-[10px] text-[#979097]">{agent.role}</div></div><div className={`h-1.5 w-1.5 rounded-full ${activeAgents.has(agent.name.toLowerCase()) ? 'bg-[#bd5e50]' : 'bg-[#7db397]'}`} /></div></div>; })}</div>{findings.length > 0 && <div className="mt-4 max-h-[280px] space-y-2 overflow-y-auto pr-1" data-testid="list-live-findings">{findings.map((f) => { const s = severityStyle(f.severity); return <div key={f.id} className={`rounded-xl ${s.bg} p-3`} data-testid={`card-finding-${f.id}`}><div className={`text-[10px] font-semibold uppercase tracking-wide ${s.text}`}>{f.agent} · {f.severity}</div><p className={`mt-1 text-[11px] leading-5 ${s.text}`}>{f.finding}</p></div>; })}</div>}<div className="mt-6 rounded-2xl border border-[#d5e6dc] bg-[#e9f3ed] p-4"><div className="flex gap-2 text-[#477e6d]"><ShieldCheck size={15} /><span className="text-[11px] font-semibold">Evidence cross-check on</span></div><p className="mt-2 text-[10px] leading-4 text-[#759086]">We’ll gently flag where your story can be backed by your resume or public work.</p></div><button onClick={end} disabled={ending} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-[#dfd3de] bg-[#f9f0f8] py-3 text-[11px] font-semibold text-[#825f99] transition-colors hover:bg-[#eadcf0] disabled:opacity-60" data-testid="button-end-session">{ending ? <LoaderCircle size={15} className="animate-spin" /> : <Square size={13} fill="currentColor" />} {ending ? 'Generating your read…' : 'End session & see my read'}</button>{endError && <p className="mt-3 text-center text-[10px] leading-4 text-[#a35a5a]" data-testid="text-end-error">{endError}</p>}</aside></div></div></div>;
 }
 
+function downloadJson(filename: string, data: unknown): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function ScorecardListPage() {
+  const queryClient = useQueryClient();
   const { data: interviews, isLoading } = useListInterviews({ query: { queryKey: getListInterviewsQueryKey() } });
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const deleteInterview = useDeleteInterview({
+    mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListInterviewsQueryKey() }) },
+  });
+
+  const handleDelete = (e: MouseEvent, interviewId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (window.confirm('Delete this scorecard permanently? This cannot be undone.')) {
+      deleteInterview.mutate({ interviewId });
+    }
+  };
+
+  const handleDownload = async (e: MouseEvent, interview: InterviewSummary) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDownloadingId(interview.id);
+    try {
+      const detail = await getInterview(interview.id);
+      downloadJson(`auracheck-scorecard-${interview.id}.json`, detail);
+    } catch {
+      window.alert('Could not download this scorecard. Please try again.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   return <div className="page-enter mx-auto max-w-[1150px] px-5 py-8 sm:px-8 sm:py-12"><div className="mb-9 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><SectionLabel>Interview history</SectionLabel><h1 className="font-display text-[clamp(42px,6vw,68px)] leading-[.94] tracking-[-.045em]">Every read,<br />kept for <em className="text-[#8d67ae]">you.</em></h1><p className="mt-5 max-w-[500px] text-[14px] leading-7 text-[#77727d]">Each practice room is saved on its own — nothing gets overwritten.</p></div><Link href="/setup" className="group inline-flex w-fit items-center gap-2 rounded-full border border-[#cfc2d8] bg-[#f3eaf7] px-4 py-3 text-[11px] font-semibold text-[#805b98] transition-colors hover:bg-[#e8d9ef]" data-testid="link-new-session"><Plus size={15} /> New practice room <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" /></Link></div>
     {isLoading ? <div className="flex items-center gap-2 text-[12px] text-[#8e888d]"><LoaderCircle size={15} className="animate-spin" /> Loading your history…</div>
     : !interviews || interviews.length === 0 ? <div className="rounded-[25px] border border-dashed border-[#d9d0c3] bg-[#fbf8f2] p-10 text-center" data-testid="empty-interview-history"><p className="text-[13px] leading-6 text-[#8b858d]">You haven't completed a practice room yet. Start one to see your read here.</p></div>
-    : <div className="overflow-hidden rounded-[22px] border border-[#e4ddd3] bg-[#fbf8f2]">{interviews.map((interview, i) => <Link key={interview.id} href={`/scorecard/${interview.id}`} className="group flex flex-col gap-3 border-b border-[#e8e1d7] px-5 py-5 transition-colors last:border-0 hover:bg-[#f7f1e8] sm:flex-row sm:items-center sm:justify-between sm:px-7" data-testid={`row-interview-${i}`}><div><div className="text-[14px] font-semibold text-[#3c3949]">{interview.candidateName}{interview.targetRole ? ` · ${interview.targetRole}` : ''}</div><div className="mt-1 text-[11px] text-[#918c93]">{new Date(interview.endedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</div></div><div className="flex items-center gap-4"><div className="text-right"><div className="font-mono-ui text-[9px] uppercase tracking-wider text-[#aaa3a5]">Overall</div><div className="mt-1 font-display text-[24px] leading-none text-[#4a3d58]">{interview.overallScore ?? '—'}{interview.overallScore != null && <span className="text-[12px] text-[#a8a0a1]">/100</span>}</div></div><ChevronRight size={16} className="text-[#8d67ae] opacity-70 transition-transform group-hover:translate-x-0.5" /></div></Link>)}</div>}
+    : <div className="overflow-hidden rounded-[22px] border border-[#e4ddd3] bg-[#fbf8f2]">{interviews.map((interview, i) => <Link key={interview.id} href={`/scorecard/${interview.id}`} className="group flex flex-col gap-3 border-b border-[#e8e1d7] px-5 py-5 transition-colors last:border-0 hover:bg-[#f7f1e8] sm:flex-row sm:items-center sm:justify-between sm:px-7" data-testid={`row-interview-${i}`}><div><div className="text-[14px] font-semibold text-[#3c3949]">{interview.candidateName}{interview.targetRole ? ` · ${interview.targetRole}` : ''}</div><div className="mt-1 text-[11px] text-[#918c93]">{new Date(interview.endedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</div></div><div className="flex items-center gap-4"><div className="text-right"><div className="font-mono-ui text-[9px] uppercase tracking-wider text-[#aaa3a5]">Overall</div><div className="mt-1 font-display text-[24px] leading-none text-[#4a3d58]">{interview.overallScore ?? '—'}{interview.overallScore != null && <span className="text-[12px] text-[#a8a0a1]">/100</span>}</div></div><button onClick={(e) => handleDownload(e, interview)} disabled={downloadingId === interview.id} className="rounded-lg p-2 text-[#8e888d] transition-colors hover:bg-[#ece4f2] hover:text-[#805b98] disabled:opacity-50" title="Download as JSON" data-testid={`button-download-${i}`}>{downloadingId === interview.id ? <LoaderCircle size={15} className="animate-spin" /> : <Download size={15} />}</button><button onClick={(e) => handleDelete(e, interview.id)} disabled={deleteInterview.isPending} className="rounded-lg p-2 text-[#8e888d] transition-colors hover:bg-[#f6e3e3] hover:text-[#a35a5a] disabled:opacity-50" title="Delete" data-testid={`button-delete-${i}`}><Trash2 size={15} /></button><ChevronRight size={16} className="text-[#8d67ae] opacity-70 transition-transform group-hover:translate-x-0.5" /></div></Link>)}</div>}
   </div>;
 }
 

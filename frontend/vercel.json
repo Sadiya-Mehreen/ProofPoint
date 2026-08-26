@@ -3,9 +3,6 @@
   "installCommand": "corepack enable && corepack prepare pnpm@11.24.0 --activate && pnpm install --frozen-lockfile",
   "buildCommand": "pnpm --filter @workspace/auracheck... run build",
   "outputDirectory": "artifacts/auracheck/dist/public",
-  "env": {
-    "VITE_API_BASE_URL": "https://auracheck-api-server.onrender.com"
-  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
