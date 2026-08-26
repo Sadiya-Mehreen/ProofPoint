@@ -1,3 +1,6 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+<svg width="180" height="180" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<clipPath id="auracheck-mark"><circle cx="50" cy="50" r="50"/></clipPath>
+</defs>
+<image href="/assets/auracheck-logo.jpg" x="-155.55" y="-27.78" width="408.32" height="201.92" clip-path="url(#auracheck-mark)"/>
 </svg>
