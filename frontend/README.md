@@ -2,6 +2,20 @@
 
 AuraCheck helps fresher graduates rehearse interviews and presentations with a live five-agent panel and evidence-backed coaching.
 
+## Live
+
+- **App** (Vercel): https://auracheck-taupe.vercel.app
+- **api-server** (Railway): https://api-server-production-582a.up.railway.app -- not meant to be browsed directly, this is what the deployed frontend talks to
+- The Python engine (`backend/`) runs as a second Railway service with no public domain -- `api-server` reaches it over Railway's private network only.
+
+### Deploying
+
+`vercel.json` builds and serves `artifacts/auracheck` as a static site; `render.yaml` at the repo root was an earlier Render-based attempt that's no longer used now that both backends run on Railway instead. Cross-origin deploys (frontend and api-server on different domains) need these production env vars beyond the local-dev ones below:
+
+- `auracheck` (build-time, baked into the static bundle by Vite): `VITE_API_BASE_URL` -- absolute URL of the deployed `api-server`. Leave unset for local dev.
+- `api-server`: `NODE_ENV=production`, `FRONTEND_ORIGIN` (the deployed frontend's origin(s), comma-separated -- required once `NODE_ENV=production`, since `cors()` with `credentials: true` can't pair with a wildcard origin), and `AUTH_DB_PATH` pointed at a mounted persistent volume (its SQLite file is lost on redeploy otherwise).
+- In production the session cookie switches to `SameSite=None; Secure` (see `lib/session-cookie.ts`) since the two services are cross-origin; locally it stays `SameSite=Lax`.
+
 ## Run & Operate
 
 - `PORT=8080 pnpm --filter @workspace/api-server run dev` — run the API server
