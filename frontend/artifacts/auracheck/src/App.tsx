@@ -140,6 +140,13 @@ function initials(name: string): string {
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || parts[0]?.[1] || '')).toUpperCase();
 }
 
+function formatHeaderDate(date: Date): string {
+  const weekday = date.toLocaleDateString(undefined, { weekday: 'long' });
+  const day = date.toLocaleDateString(undefined, { day: '2-digit' });
+  const month = date.toLocaleDateString(undefined, { month: 'long' });
+  return `${weekday}, ${day} ${month} ${date.getFullYear()}`;
+}
+
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
   if (isLoading) {
@@ -295,7 +302,7 @@ function AppShell({ children }: { children: ReactNode }) {
       {mobileOpen && <button aria-label="Close navigation" className="fixed inset-0 z-30 bg-[#1d1e2a]/60 md:hidden" onClick={() => setMobileOpen(false)} data-testid="button-dismiss-menu" />}
       <div className="min-w-0 md:pl-[238px]">
         <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-[#e5dfd5] bg-[#f5f1e9]/90 px-5 backdrop-blur-md sm:px-8">
-          <div className="flex items-center gap-3"><button className="rounded-lg p-2 text-[#5d5b6b] hover:bg-[#ebe5dc] md:hidden" onClick={() => setMobileOpen(true)} data-testid="button-open-menu"><Menu size={19} /></button><span className="hidden font-mono-ui text-[10px] uppercase tracking-[.18em] text-[#99949b] sm:inline">Monday, 08 April 2024</span></div>
+          <div className="flex items-center gap-3"><button className="rounded-lg p-2 text-[#5d5b6b] hover:bg-[#ebe5dc] md:hidden" onClick={() => setMobileOpen(true)} data-testid="button-open-menu"><Menu size={19} /></button><span className="hidden font-mono-ui text-[10px] uppercase tracking-[.18em] text-[#99949b] sm:inline">{formatHeaderDate(new Date())}</span></div>
           <div className="flex items-center gap-2 sm:gap-4"><button className="relative rounded-xl p-2 text-[#77717d] transition-colors hover:bg-[#ebe5dc]" data-testid="button-notifications"><Bell size={18} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#a374ba]" /></button><div className="hidden h-5 w-px bg-[#dfd8ce] sm:block" /><Link href="/settings" className="flex items-center gap-2 rounded-xl px-2 py-1.5 transition-colors hover:bg-[#ebe5dc]" data-testid="link-header-profile"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d5e9df] font-mono-ui text-[10px] font-medium text-[#326153]">{initials(displayName)}</div><span className="hidden text-[12px] font-semibold text-[#444252] sm:inline">{displayName}</span></Link></div>
         </header>
         <main className="min-w-0">{children}</main>
