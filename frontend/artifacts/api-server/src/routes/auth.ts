@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
 import { LoginBody, SignupBody } from "@workspace/api-zod";
 import {
-  createSession,
-  createUser,
-  deleteSession,
-  findUserByEmail,
+ createSession,
+ createUser,
+ deleteSession,
+ findUserByEmail,
+ updateLastLogin,
 } from "../lib/auth-store";
 import { hashPassword, verifyPassword } from "../lib/password";
 import { clearSessionCookie, setSessionCookie, SESSION_COOKIE_NAME } from "../lib/session-cookie";
@@ -49,9 +50,11 @@ router.post("/auth/login", async (req, res) => {
     return;
   }
 
-  const { token, expiresAt } = createSession(record.id);
-  setSessionCookie(res, token, expiresAt);
-  res.json({ id: record.id, name: record.name, email: record.email });
+  updateLastLogin(record.id);
+
+const { token, expiresAt } = createSession(record.id);
+setSessionCookie(res, token, expiresAt);
+res.json({ id: record.id, name: record.name, email: record.email });
 });
 
 router.post("/auth/logout", (req, res) => {
