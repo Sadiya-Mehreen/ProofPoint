@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "corepack enable && corepack prepare pnpm@11.24.0 --activate && pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @workspace/auracheck... run build",
+  "outputDirectory": "artifacts/auracheck/dist/public",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

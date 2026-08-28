@@ -1,0 +1,49 @@
+services:
+  # Python/FastAPI + CrewAI engine. Only ever called server-to-server by
+  # auracheck-api-server below -- never directly by the browser -- so it
+  # needs no CORS configuration.
+  - type: web
+    name: auracheck-backend
+    runtime: python
+    plan: starter
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.9
+      # CrewAI/litellm read this directly; get it from console.groq.com.
+      - key: GROQ_API_KEY
+        sync: false
+
+  # Node/Express auth + session + WebSocket-proxy layer the frontend talks
+  # to. Owns the SQLite file for accounts and interview history, so it needs
+  # the attached disk below to survive deploys/restarts.
+  - type: web
+    name: auracheck-api-server
+    runtime: node
+    plan: starter
+    region: oregon
+    rootDir: frontend
+    buildCommand: corepack enable && corepack prepare pnpm@11.24.0 --activate && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server... run build
+    startCommand: node artifacts/api-server/dist/index.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: 24.15.0
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: BACKEND_URL
+        value: https://auracheck-backend.onrender.com
+      # The deployed frontend origin(s), comma-separated -- e.g.
+      # https://auracheck.me,https://www.auracheck.me
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: AUTH_DB_PATH
+        value: /var/data/auracheck.db
+    disk:
+      name: auracheck-data
+      mountPath: /var/data
+      sizeGB: 1
