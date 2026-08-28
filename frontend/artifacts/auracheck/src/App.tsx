@@ -505,6 +505,7 @@ function severityStyle(severity: string): { bg: string; text: string } {
 
 function Interview() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
   const session = getSession();
   const endSession = useEndSession();
   const [elapsed, setElapsed] = useState(0);
@@ -547,6 +548,17 @@ function Interview() {
   // that answer exists, and gets cleared the moment a new question arrives.
   const [recommendedAnswer, setRecommendedAnswer] = useState<{ summary: string; keyPoints: string[]; sampleAnswer: string } | null>(null);
   const [showRecommended, setShowRecommended] = useState(true);
+
+  // The live panel above clears on every new question -- too fast to actually
+  // read before the panel moves on -- so every recommendation also lands here,
+  // paired with the question it answers, for the candidate to download later.
+  const [answerLog, setAnswerLog] = useState<Array<{ speaker: string | null; question: string; summary: string; keyPoints: string[]; sampleAnswer: string }>>([]);
+  // The WS onmessage closure below is set up once per session.sessionId, so it
+  // would otherwise see currentQuestion/currentSpeaker as they were at that
+  // moment -- this ref is how it reads the *current* question when a
+  // recommended_answer event (always sent right after it) arrives.
+  const currentQuestionRef = useRef({ speaker: null as string | null, question: '' });
+  useEffect(() => { currentQuestionRef.current = { speaker: currentSpeaker, question: currentQuestion }; }, [currentSpeaker, currentQuestion]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -620,12 +632,14 @@ function Interview() {
       }
 
       if (data.type === 'recommended_answer') {
-        setRecommendedAnswer({
+        const parsed = {
           summary: typeof data.summary === 'string' ? data.summary : '',
           keyPoints: Array.isArray(data.key_points) ? (data.key_points as string[]) : [],
           sampleAnswer: typeof data.sample_answer === 'string' ? data.sample_answer : '',
-        });
+        };
+        setRecommendedAnswer(parsed);
         setShowRecommended(true);
+        setAnswerLog((prev) => [...prev, { ...currentQuestionRef.current, ...parsed }]);
         return;
       }
 
@@ -745,11 +759,10 @@ function Interview() {
   };
   return <div className="page-enter bg-[#efebe4] px-4 py-5 sm:px-8 sm:py-8"><div className="mx-auto max-w-[1250px]"><div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><SectionLabel>Live practice room</SectionLabel><div className="flex items-center gap-3"><span className="font-mono-ui text-[12px] text-[#5e5963]">{time}</span><span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono-ui text-[9px] uppercase tracking-wider ${wsStatus === 'open' ? 'bg-[#f4dcd6] text-[#9b554a]' : 'bg-[#e9e4da] text-[#8e888d]'}`}><span className={`pulse-dot h-1.5 w-1.5 rounded-full ${wsStatus === 'open' ? 'bg-[#bd5e50]' : 'bg-[#a29aa0]'}`} /> {wsStatus === 'open' ? 'panel connected' : wsStatus === 'connecting' ? 'connecting…' : 'panel disconnected'}</span></div></div><div className="flex items-center gap-2"><span className="mr-2 text-[10px] text-[#a29aa0]">Panel listening</span>{session.agents.map((agent) => <AgentPill agent={agent} key={agent.name} active={agent.name.toLowerCase() === currentSpeaker} />)}</div></div>
     <div className="grid gap-5 lg:grid-cols-[1fr_340px]"><section className="relative overflow-hidden rounded-[25px] bg-[#282738] px-5 pb-6 pt-7 text-[#f9f4ec] shadow-[0_18px_45px_rgba(44,40,56,.14)] sm:px-9 sm:pb-8 sm:pt-9"><div className="absolute -right-20 -top-24 h-72 w-72 rounded-full border border-[#8c70a7]/25" /><div className="absolute -right-4 -top-10 h-48 w-48 rounded-full border border-[#8c70a7]/20" /><div className="relative z-10 flex items-start justify-between"><div><div className="mb-3 flex items-center gap-2 font-mono-ui text-[9px] uppercase tracking-[.2em] text-[#b8a5c8]"><span className="h-1.5 w-1.5 rounded-full bg-[#9f75bb]" />{currentSpeaker ? `${currentSpeaker.charAt(0).toUpperCase()}${currentSpeaker.slice(1)} · ${phaseLabel}` : phaseLabel}</div><h1 className="max-w-[670px] font-display text-[clamp(29px,4vw,48px)] leading-[1.03] tracking-[-.03em]">{heading}</h1></div><div className="hidden rounded-xl border border-[#49475a] px-3 py-2 text-right sm:block"><div className="font-mono-ui text-[9px] uppercase tracking-widest text-[#898697]">exchange</div><div className="mt-1 text-[12px] text-[#d1cbd0]">{String(exchangeCount).padStart(2, '0')}{currentDifficulty && <span className="text-[#777489]"> · {currentDifficulty}</span>}</div></div></div><div className="relative z-10 mt-16 flex min-h-[155px] items-end justify-center rounded-2xl border border-[#434154] bg-[#302e42] px-6 py-5 sm:mt-20"><div className="absolute left-5 top-5 flex items-center gap-2 text-[10px] text-[#a3a0ad]"><Volume2 size={14} className="text-[#a5d2c3]" /> {!micSupported ? 'Voice input unsupported in this browser' : isSpeaking ? 'Panel is speaking…' : shouldListen ? 'Listening…' : isListening ? 'Waiting for the panel to finish…' : 'Microphone paused'}</div>{shouldListen ? <div className="flex h-20 items-end gap-1.5">{[18,32,56,40,72,45,62,84,47,67,37,59,78,52,30,45,23].map((height, i) => <span key={i} className="wave-bar w-1.5 rounded-full bg-[#a5d2c3] sm:w-2" style={{ height: `${height}%` }} />)}</div> : <div className="font-display text-[23px] text-[#a7a4af]">{isSpeaking ? 'Listening once the panel finishes…' : 'Paused for a breath.'}</div>}</div><div className="relative z-10 mt-5 rounded-2xl bg-[#343246] p-5"><div className="mb-2 flex items-center justify-between"><span className="font-mono-ui text-[9px] uppercase tracking-[.17em] text-[#938e9f]">Live transcript</span></div><p className="text-[13px] leading-6 text-[#d1cdd1]" data-testid="text-live-transcript">{transcript}{shouldListen && <span className="ml-1 inline-block h-4 w-0.5 translate-y-1 bg-[#a5d2c3]" />}</p></div>{recommendedAnswer && <div className="relative z-10 mt-5 rounded-2xl border border-[#4a4560] bg-[#302e42] p-5" data-testid="panel-recommended-answer"><button className="flex w-full items-center justify-between text-left" onClick={() => setShowRecommended((v) => !v)} data-testid="button-toggle-recommended"><span className="flex items-center gap-2 font-mono-ui text-[9px] uppercase tracking-[.17em] text-[#a9d4c6]"><Sparkles size={13} /> Recommended answer</span><ChevronRight size={14} className={`transition-transform ${showRecommended ? 'rotate-90' : ''}`} /></button>{showRecommended && <div className="mt-3 space-y-3">{recommendedAnswer.summary && <p className="text-[12px] leading-5 text-[#d1cdd1]">{recommendedAnswer.summary}</p>}{recommendedAnswer.keyPoints.length > 0 && <ul className="space-y-1.5">{recommendedAnswer.keyPoints.map((point, i) => <li key={i} className="flex gap-2 text-[11px] leading-5 text-[#c3bfd0]"><span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-[#a9d4c6]" />{point}</li>)}</ul>}{recommendedAnswer.sampleAnswer && <div className="rounded-xl bg-[#272537] p-3"><div className="mb-1 font-mono-ui text-[9px] uppercase tracking-wide text-[#8f8aa0]">Sample answer</div><p className="text-[11px] italic leading-5 text-[#b8b3c8]">"{recommendedAnswer.sampleAnswer}"</p></div>}</div>}</div>}<div className="relative z-10 mt-7 flex items-center justify-center gap-4"><button disabled={micDisabled} className={`flex h-14 w-14 items-center justify-center rounded-full border-4 border-[#4a485a] transition-all hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40 ${shouldListen ? 'bg-[#aa7bc1] text-white shadow-[0_0_0_7px_rgba(170,123,193,.14)]' : isListening ? 'bg-[#6b5a7a] text-[#e5dfea]' : 'bg-[#48465a] text-[#c8c3cd]'}`} onClick={() => setIsListening((v) => !v)} data-testid="button-toggle-microphone">{isListening ? <Mic size={22} /> : <Mic size={22} className="opacity-50" />}</button><button disabled={!currentQuestion} className="flex h-10 w-10 items-center justify-center rounded-full border border-[#5a5769] text-[#bab5bf] transition-colors hover:bg-[#403e51] disabled:cursor-not-allowed disabled:opacity-30" onClick={replayCurrentQuestion} data-testid="button-replay-prompt" title="Replay this"><RotateCcw size={16} /></button></div><div className="mt-4 text-center text-[10px] text-[#858294]">{!micSupported ? 'Try Chrome or Edge for live voice input.' : interviewPhase === 'complete' ? 'The panel has what it needs.' : micPermissionDenied ? 'Microphone permission was denied -- check your browser settings.' : isSpeaking ? "The panel is speaking -- you'll be able to respond right after." : isListening ? 'Tap the microphone to pause' : 'Tap the microphone to start speaking'}</div></section>
-      <aside className="rounded-[25px] border border-[#e2dcd3] bg-[#fbf8f2] p-5 sm:p-6"><div className="flex items-center justify-between"><div><SectionLabel>Panel notes</SectionLabel><h2 className="font-display text-[27px]">In the room</h2></div><UsersRound size={19} className="text-[#a379bb]" /></div><div className="mt-6 space-y-3">{session.agents.map((agent, i) => { const isBackground = agent.status === 'background'; return <div key={agent.name} className={`rounded-2xl border p-3.5 transition-colors ${agent.name.toLowerCase() === currentSpeaker ? 'border-[#c7aee0] bg-[#f4edf9]' : isBackground ? 'border-dashed border-[#e9e2da] bg-[#f8f4ee] opacity-80' : 'border-[#e9e2da] bg-[#f8f4ee]'}`} data-testid={`card-panel-agent-${i}`} title={isBackground ? `${agent.name} checks evidence in the background -- doesn't ask questions live` : undefined}><div className="flex items-center gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold" style={{ backgroundColor: `${agent.color}25`, color: agent.color }}>{agent.name[0]}</div><div className="flex-1"><div className="text-[11px] font-semibold text-[#504b58]">{agent.name}{isBackground && <span className="ml-1.5 font-mono-ui text-[8px] font-normal uppercase tracking-wide text-[#a39fa8]">background</span>}</div><div className="mt-0.5 text-[10px] text-[#979097]">{agent.role}</div></div><div className={`h-1.5 w-1.5 rounded-full ${activeAgents.has(agent.name.toLowerCase()) ? 'bg-[#bd5e50]' : 'bg-[#7db397]'}`} /></div></div>; })}</div>{findings.length > 0 && <div className="mt-4 max-h-[280px] space-y-2 overflow-y-auto pr-1" data-testid="list-live-findings">{findings.map((f) => { const s = severityStyle(f.severity); return <div key={f.id} className={`rounded-xl ${s.bg} p-3`} data-testid={`card-finding-${f.id}`}><div className={`text-[10px] font-semibold uppercase tracking-wide ${s.text}`}>{f.agent} · {f.severity}</div><p className={`mt-1 text-[11px] leading-5 ${s.text}`}>{f.finding}</p></div>; })}</div>}<div className="mt-6 rounded-2xl border border-[#d5e6dc] bg-[#e9f3ed] p-4"><div className="flex gap-2 text-[#477e6d]"><ShieldCheck size={15} /><span className="text-[11px] font-semibold">Evidence cross-check on</span></div><p className="mt-2 text-[10px] leading-4 text-[#759086]">We’ll gently flag where your story can be backed by your resume or public work.</p></div><button onClick={end} disabled={ending} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-[#dfd3de] bg-[#f9f0f8] py-3 text-[11px] font-semibold text-[#825f99] transition-colors hover:bg-[#eadcf0] disabled:opacity-60" data-testid="button-end-session">{ending ? <LoaderCircle size={15} className="animate-spin" /> : <Square size={13} fill="currentColor" />} {ending ? 'Generating your read…' : 'End session & see my read'}</button>{endError && <p className="mt-3 text-center text-[10px] leading-4 text-[#a35a5a]" data-testid="text-end-error">{endError}</p>}</aside></div></div></div>;
+      <aside className="rounded-[25px] border border-[#e2dcd3] bg-[#fbf8f2] p-5 sm:p-6"><div className="flex items-center justify-between"><div><SectionLabel>Panel notes</SectionLabel><h2 className="font-display text-[27px]">In the room</h2></div><UsersRound size={19} className="text-[#a379bb]" /></div><div className="mt-6 space-y-3">{session.agents.map((agent, i) => { const isBackground = agent.status === 'background'; return <div key={agent.name} className={`rounded-2xl border p-3.5 transition-colors ${agent.name.toLowerCase() === currentSpeaker ? 'border-[#c7aee0] bg-[#f4edf9]' : isBackground ? 'border-dashed border-[#e9e2da] bg-[#f8f4ee] opacity-80' : 'border-[#e9e2da] bg-[#f8f4ee]'}`} data-testid={`card-panel-agent-${i}`} title={isBackground ? `${agent.name} checks evidence in the background -- doesn't ask questions live` : undefined}><div className="flex items-center gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold" style={{ backgroundColor: `${agent.color}25`, color: agent.color }}>{agent.name[0]}</div><div className="flex-1"><div className="text-[11px] font-semibold text-[#504b58]">{agent.name}{isBackground && <span className="ml-1.5 font-mono-ui text-[8px] font-normal uppercase tracking-wide text-[#a39fa8]">background</span>}</div><div className="mt-0.5 text-[10px] text-[#979097]">{agent.role}</div></div><div className={`h-1.5 w-1.5 rounded-full ${activeAgents.has(agent.name.toLowerCase()) ? 'bg-[#bd5e50]' : 'bg-[#7db397]'}`} /></div></div>; })}</div>{findings.length > 0 && <div className="mt-4 max-h-[280px] space-y-2 overflow-y-auto pr-1" data-testid="list-live-findings">{findings.map((f) => { const s = severityStyle(f.severity); return <div key={f.id} className={`rounded-xl ${s.bg} p-3`} data-testid={`card-finding-${f.id}`}><div className={`text-[10px] font-semibold uppercase tracking-wide ${s.text}`}>{f.agent} · {f.severity}</div><p className={`mt-1 text-[11px] leading-5 ${s.text}`}>{f.finding}</p></div>; })}</div>}<div className="mt-6 rounded-2xl border border-[#d5e6dc] bg-[#e9f3ed] p-4"><div className="flex gap-2 text-[#477e6d]"><ShieldCheck size={15} /><span className="text-[11px] font-semibold">Evidence cross-check on</span></div><p className="mt-2 text-[10px] leading-4 text-[#759086]">We’ll gently flag where your story can be backed by your resume or public work.</p></div><button onClick={() => generateAnswerLogPdf(user?.name || 'Candidate', answerLog)} disabled={answerLog.length === 0} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#d9d0c3] bg-[#fbf8f2] py-3 text-[11px] font-semibold text-[#6f6a72] transition-colors hover:bg-[#f3ecdf] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-download-recommendations" title={answerLog.length === 0 ? 'No recommendations yet -- these show up right after the panel replies to your answers' : undefined}><FileText size={13} /> Download recommendations{answerLog.length > 0 ? ` (${answerLog.length})` : ''}</button><button onClick={end} disabled={ending} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-[#dfd3de] bg-[#f9f0f8] py-3 text-[11px] font-semibold text-[#825f99] transition-colors hover:bg-[#eadcf0] disabled:opacity-60" data-testid="button-end-session">{ending ? <LoaderCircle size={15} className="animate-spin" /> : <Square size={13} fill="currentColor" />} {ending ? 'Generating your read…' : 'End session & see my read'}</button>{endError && <p className="mt-3 text-center text-[10px] leading-4 text-[#a35a5a]" data-testid="text-end-error">{endError}</p>}</aside></div></div></div>;
 }
 
-function generateScorecardPdf(detail: InterviewDetail): void {
-  const doc = new jsPDF();
+function createPdfWriter(doc: jsPDF) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 18;
@@ -763,102 +776,139 @@ function generateScorecardPdf(detail: InterviewDetail): void {
     }
   };
 
-  const addHeading = (text: string) => {
-    ensureSpace(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.text(text, marginX, y);
-    y += 7;
-  };
-
-  const addParagraph = (text: string, size = 10) => {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(size);
-    const lines = doc.splitTextToSize(text, contentWidth);
-    for (const line of lines) {
-      ensureSpace(6);
-      doc.text(line, marginX, y);
-      y += 5.5;
-    }
-    y += 2;
-  };
-
-  const addBulletList = (items: string[]) => {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    for (const item of items) {
-      const lines = doc.splitTextToSize(`•  ${item}`, contentWidth);
+  return {
+    marginX,
+    get y() { return y; },
+    set y(value: number) { y = value; },
+    ensureSpace,
+    addHeading(text: string) {
+      ensureSpace(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text(text, marginX, y);
+      y += 7;
+    },
+    addParagraph(text: string, size = 10) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(size);
+      const lines = doc.splitTextToSize(text, contentWidth);
       for (const line of lines) {
         ensureSpace(6);
         doc.text(line, marginX, y);
         y += 5.5;
       }
-    }
-    y += 2;
+      y += 2;
+    },
+    addBulletList(items: string[]) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      for (const item of items) {
+        const lines = doc.splitTextToSize(`•  ${item}`, contentWidth);
+        for (const line of lines) {
+          ensureSpace(6);
+          doc.text(line, marginX, y);
+          y += 5.5;
+        }
+      }
+      y += 2;
+    },
   };
+}
 
+function generateScorecardPdf(detail: InterviewDetail): void {
+  const doc = new jsPDF();
+  const w = createPdfWriter(doc);
   const { scorecard } = detail;
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(20);
-  doc.text('AuraCheck Scorecard', marginX, y);
-  y += 10;
+  doc.text('AuraCheck Scorecard', w.marginX, w.y);
+  w.y += 10;
 
-  addParagraph(
+  w.addParagraph(
     `${detail.candidateName}${detail.targetRole ? ` · ${detail.targetRole}` : ''}  —  ${new Date(detail.endedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`,
     11,
   );
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
-  ensureSpace(10);
-  doc.text(`Overall score: ${scorecard.overallScore ?? '—'}${scorecard.overallScore != null ? '/100' : ''}`, marginX, y);
-  y += 10;
+  w.ensureSpace(10);
+  doc.text(`Overall score: ${scorecard.overallScore ?? '—'}${scorecard.overallScore != null ? '/100' : ''}`, w.marginX, w.y);
+  w.y += 10;
 
   if (scorecard.overallAssessment) {
-    addHeading('Overall assessment');
-    addParagraph(scorecard.overallAssessment);
+    w.addHeading('Overall assessment');
+    w.addParagraph(scorecard.overallAssessment);
   }
 
   if (scorecard.dimensions.length > 0) {
-    addHeading('Dimensions');
+    w.addHeading('Dimensions');
     for (const dim of scorecard.dimensions) {
-      addParagraph(`${dim.label}: ${dim.score ?? '—'}${dim.score != null ? '/100' : ''}`, 10.5);
-      if (dim.note) addParagraph(dim.note, 9.5);
+      w.addParagraph(`${dim.label}: ${dim.score ?? '—'}${dim.score != null ? '/100' : ''}`, 10.5);
+      if (dim.note) w.addParagraph(dim.note, 9.5);
     }
   }
 
   if (scorecard.strengths.length > 0) {
-    addHeading('Strengths');
-    addBulletList(scorecard.strengths);
+    w.addHeading('Strengths');
+    w.addBulletList(scorecard.strengths);
   }
 
   if (scorecard.weaknesses.length > 0) {
-    addHeading('Weaknesses');
-    addBulletList(scorecard.weaknesses);
+    w.addHeading('Weaknesses');
+    w.addBulletList(scorecard.weaknesses);
   }
 
   if (scorecard.areasToImprove.length > 0) {
-    addHeading('Areas to improve');
-    addBulletList(scorecard.areasToImprove);
+    w.addHeading('Areas to improve');
+    w.addBulletList(scorecard.areasToImprove);
   }
 
   if (scorecard.redFlags.length > 0) {
-    addHeading('Red flags');
-    addBulletList(scorecard.redFlags);
+    w.addHeading('Red flags');
+    w.addBulletList(scorecard.redFlags);
   }
 
   if (scorecard.mandatoryRepairSteps.length > 0) {
-    addHeading('Mandatory repair steps');
-    addBulletList(scorecard.mandatoryRepairSteps);
+    w.addHeading('Mandatory repair steps');
+    w.addBulletList(scorecard.mandatoryRepairSteps);
   }
 
   if (scorecard.finalRecommendation) {
-    addHeading('Final recommendation');
-    addParagraph(scorecard.finalRecommendation);
+    w.addHeading('Final recommendation');
+    w.addParagraph(scorecard.finalRecommendation);
   }
 
   doc.save(`auracheck-scorecard-${detail.id}.pdf`);
+}
+
+function generateAnswerLogPdf(
+  candidateName: string,
+  log: Array<{ speaker: string | null; question: string; summary: string; keyPoints: string[]; sampleAnswer: string }>,
+): void {
+  const doc = new jsPDF();
+  const w = createPdfWriter(doc);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.text('AuraCheck — Recommended Answers', w.marginX, w.y);
+  w.y += 10;
+
+  w.addParagraph(
+    `${candidateName} — ${new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`,
+    11,
+  );
+
+  log.forEach((entry, i) => {
+    const speakerLabel = entry.speaker ? `${entry.speaker.charAt(0).toUpperCase()}${entry.speaker.slice(1)} asked` : 'Question';
+    w.addHeading(`${i + 1}. ${speakerLabel}`);
+    w.addParagraph(entry.question, 10.5);
+    if (entry.summary) w.addParagraph(entry.summary, 9.5);
+    if (entry.keyPoints.length > 0) w.addBulletList(entry.keyPoints);
+    if (entry.sampleAnswer) w.addParagraph(`Sample answer: "${entry.sampleAnswer}"`, 9.5);
+  });
+
+  doc.save(`auracheck-recommendations-${Date.now()}.pdf`);
 }
 
 function ScorecardListPage() {
