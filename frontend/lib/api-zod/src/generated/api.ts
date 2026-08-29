@@ -149,7 +149,7 @@ export const GetGithubFootprintParams = zod.object({
 
 export const GetGithubFootprintResponse = zod.object({
   "username": zod.string(),
-  "found": zod.boolean().describe('Whether this resolved to a real, public GitHub account.'),
+  "status": zod.enum(['found', 'not_found', 'unavailable']).describe('\"found\" is a confirmed public account. \"not_found\" means this username doesn\'t exist -- correctable by the candidate. \"unavailable\" means GitHub couldn\'t be reached or rate-limited us -- not the candidate\'s fault, shouldn\'t block them.'),
   "repositories": zod.number(),
   "topLanguages": zod.array(zod.string()),
   "summary": zod.string()

@@ -420,13 +420,18 @@ components:
           type: string
     GithubFootprint:
       type: object
-      required: [username, found, repositories, topLanguages, summary]
+      required: [username, status, repositories, topLanguages, summary]
       properties:
         username:
           type: string
-        found:
-          type: boolean
-          description: Whether this resolved to a real, public GitHub account.
+        status:
+          type: string
+          enum: [found, not_found, unavailable]
+          description: >-
+            "found" is a confirmed public account. "not_found" means this
+            username doesn't exist -- correctable by the candidate.
+            "unavailable" means GitHub couldn't be reached or rate-limited
+            us -- not the candidate's fault, shouldn't block them.
         repositories:
           type: number
         topLanguages:
