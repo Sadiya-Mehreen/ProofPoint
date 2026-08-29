@@ -10,6 +10,7 @@ export * from './agent';
 export * from './authUser';
 export * from './candidateProfile';
 export * from './githubFootprint';
+export * from './githubFootprintStatus';
 export * from './healthStatus';
 export * from './interviewDetail';
 export * from './interviewSummary';

@@ -5,11 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { GithubFootprintStatus } from './githubFootprintStatus';
 
 export interface GithubFootprint {
   username: string;
-  /** Whether this resolved to a real, public GitHub account. */
-  found: boolean;
+  /** "found" is a confirmed public account. "not_found" means this username doesn't exist -- correctable by the candidate. "unavailable" means GitHub couldn't be reached or rate-limited us -- not the candidate's fault, shouldn't block them. */
+  status: GithubFootprintStatus;
   repositories: number;
   topLanguages: string[];
   summary: string;

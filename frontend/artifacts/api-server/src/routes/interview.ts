@@ -274,15 +274,15 @@ router.get("/github/:username", async (req, res) => {
     const errorCode = typeof backendResponse["error"] === "string" ? backendResponse["error"] : null;
 
     if (errorCode) {
+      const notFound = errorCode === "user_not_found";
       res.json({
         username: input.data.username,
-        found: false,
+        status: notFound ? "not_found" : "unavailable",
         repositories: 0,
         topLanguages: [],
-        summary:
-          errorCode === "user_not_found"
-            ? "We couldn't find a public GitHub account with this username."
-            : "We couldn't read this GitHub account's public activity right now.",
+        summary: notFound
+          ? "We couldn't find a public GitHub account with this username."
+          : "We couldn't read this GitHub account's public activity right now -- you can still continue without it.",
       });
       return;
     }
@@ -293,7 +293,7 @@ router.get("/github/:username", async (req, res) => {
 
     res.json({
       username: input.data.username,
-      found: true,
+      status: "found",
       repositories: totalRepositories,
       topLanguages: languages,
       summary:
