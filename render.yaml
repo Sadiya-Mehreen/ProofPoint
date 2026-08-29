@@ -50,10 +50,14 @@ services:
         sync: false
       - key: AUTH_DB_PATH
         value: /var/data/auracheck.db
-      # Sends the "reset your password" email -- get one from resend.com.
-      # Without it, reset links are only logged server-side (lib/email.ts),
-      # so the flow still works for local dev but candidates in production
-      # won't actually receive the email.
+      # Sends password-reset and email-verification emails -- get one from
+      # resend.com. Without it, links are only logged server-side
+      # (lib/email.ts), so both flows still work for local dev but
+      # candidates in production won't actually receive the email. Note:
+      # while RESEND_FROM is left on Resend's shared onboarding@resend.dev
+      # sender (no verified domain), Resend's sandbox mode only delivers to
+      # the Resend account's own verified address -- not to real
+      # candidates -- so verify a domain before relying on this in prod.
       - key: RESEND_API_KEY
         sync: false
       # Must be a domain verified in your Resend account, e.g.

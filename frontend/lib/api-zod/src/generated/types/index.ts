@@ -24,3 +24,4 @@ export * from './session';
 export * from './sessionStartInput';
 export * from './signupInput';
 export * from './transcriptEntry';
+export * from './verifyEmailInput';

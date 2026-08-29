@@ -53,10 +53,12 @@ import {
   useListInterviews,
   useLogin,
   useLogout,
+  useResendVerification,
   useResetPassword,
   useSignup,
   useStartSession,
   useUploadResume,
+  useVerifyEmail,
 } from '@workspace/api-client-react';
 import type { AuthUser, InterviewDetail, InterviewSummary } from '@workspace/api-client-react';
 import { jsPDF } from 'jspdf';
@@ -386,6 +388,47 @@ function ResetPasswordPage() {
   );
 }
 
+function VerifyEmailPage() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const search = useSearch();
+  const token = new URLSearchParams(search).get('token') || '';
+  const verifyEmail = useVerifyEmail();
+  const attempted = useRef(false);
+
+  useEffect(() => {
+    if (!token || attempted.current) return;
+    attempted.current = true;
+    verifyEmail.mutate(
+      { data: { token } },
+      { onSuccess: (verified) => queryClient.setQueryData(getGetCurrentUserQueryKey(), verified) },
+    );
+  }, [token, verifyEmail, queryClient]);
+
+  let heading = 'Verifying...';
+  let body: ReactNode = <LoaderCircle size={20} className="animate-spin text-[#8d67ae]" />;
+
+  if (!token) {
+    heading = 'Link missing.';
+    body = <p className="text-[13px] leading-6 text-[#77727d]">This page needs the link from your verification email.</p>;
+  } else if (verifyEmail.isSuccess) {
+    heading = "You're verified.";
+    body = <p className="text-[13px] leading-6 text-[#77727d]">Your email is confirmed.</p>;
+  } else if (verifyEmail.isError) {
+    heading = 'That link didn’t work.';
+    body = <p className="text-[13px] leading-6 text-[#a35a5a]">{verifyEmail.error instanceof ApiError ? verifyEmail.error.message : 'This link is invalid or has expired.'}</p>;
+  }
+
+  return (
+    <AuthLayout>
+      <SectionLabel>Email verification</SectionLabel>
+      <h1 className="font-display text-[32px] leading-tight tracking-[-.03em] text-[#262536]">{heading}</h1>
+      <div className="mt-4">{body}</div>
+      <p className="mt-6 text-center text-[12px] text-[#8e888d]"><Link href={user ? '/' : '/login'} className="font-semibold text-[#8d67ae] hover:underline">{user ? 'Back to AuraCheck' : 'Go to sign in'}</Link></p>
+    </AuthLayout>
+  );
+}
+
 function LegalLayout({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="min-h-[100dvh] bg-[#f5f1e9] px-5 py-10 text-[#272638] sm:px-8">
@@ -418,19 +461,19 @@ function PrivacyPage() {
       <ul>
         <li><strong>Groq</strong> processes your resume text and interview responses to run the AI panel. See <a href="https://groq.com/privacy-policy/" target="_blank" rel="noreferrer">Groq's privacy policy</a>.</li>
         <li><strong>GitHub's public API</strong> is queried with the username you provide, the same way any visitor to your public profile could.</li>
-        <li><strong>Resend</strong> sends password-reset emails when you ask for one.</li>
+        <li><strong>Resend</strong> sends account emails — verifying your address and password resets — when you ask for one.</li>
         <li>We don't sell your data, and we don't share it with anyone else.</li>
       </ul>
       <h2>How long we keep it</h2>
       <p>Your account, session history, and scorecards are kept until you delete your account. Uploaded resume files are discarded immediately after we extract the text — we don't keep the original file.</p>
       <h2>Your choices</h2>
-      <p>Email us to delete your account and everything tied to it, correct inaccurate account info, or ask any question about this policy.</p>
+      <p>Open an issue on <a href="https://github.com/kaneeza-batool/auraCheck/issues" target="_blank" rel="noreferrer">our GitHub repository</a> to request deletion of your account and everything tied to it, correct inaccurate account info, or ask any question about this policy.</p>
       <h2>Cookies</h2>
       <p>We use one cookie to keep you signed in. No advertising or tracking cookies.</p>
       <h2>Changes</h2>
       <p>If this policy changes materially, we'll update the date above and let signed-in users know.</p>
       <h2>Contact</h2>
-      <p>Questions or requests: <a href="mailto:support@auracheck.me">support@auracheck.me</a></p>
+      <p>Questions or requests: <a href="https://github.com/kaneeza-batool/auraCheck/issues" target="_blank" rel="noreferrer">open an issue on GitHub</a>.</p>
     </LegalLayout>
   );
 }
@@ -458,7 +501,7 @@ function TermsPage() {
       <h2>Changes</h2>
       <p>We may update these terms as the product evolves. Continuing to use AuraCheck after an update means you accept the revised terms.</p>
       <h2>Contact</h2>
-      <p>Questions: <a href="mailto:support@auracheck.me">support@auracheck.me</a></p>
+      <p>Questions: <a href="https://github.com/kaneeza-batool/auraCheck/issues" target="_blank" rel="noreferrer">open an issue on GitHub</a>.</p>
     </LegalLayout>
   );
 }
@@ -520,8 +563,23 @@ function AppShell({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-3"><button className="rounded-lg p-2 text-[#5d5b6b] hover:bg-[#ebe5dc] md:hidden" onClick={() => setMobileOpen(true)} data-testid="button-open-menu"><Menu size={19} /></button><span className="hidden font-mono-ui text-[10px] uppercase tracking-[.18em] text-[#99949b] sm:inline">{formatHeaderDate(new Date())}</span></div>
           <div className="flex items-center gap-2 sm:gap-4"><button className="relative rounded-xl p-2 text-[#77717d] transition-colors hover:bg-[#ebe5dc]" data-testid="button-notifications"><Bell size={18} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#a374ba]" /></button><div className="hidden h-5 w-px bg-[#dfd8ce] sm:block" /><Link href="/settings" className="flex items-center gap-2 rounded-xl px-2 py-1.5 transition-colors hover:bg-[#ebe5dc]" data-testid="link-header-profile"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d5e9df] font-mono-ui text-[10px] font-medium text-[#326153]">{initials(displayName)}</div><span className="hidden text-[12px] font-semibold text-[#444252] sm:inline">{displayName}</span></Link></div>
         </header>
+        {user && !user.emailVerified && <VerifyEmailBanner email={user.email} />}
         <main className="min-w-0">{children}</main>
       </div>
+    </div>
+  );
+}
+
+function VerifyEmailBanner({ email }: { email: string }) {
+  const resendVerification = useResendVerification();
+  const [sent, setSent] = useState(false);
+  const onResend = () => {
+    resendVerification.mutate(undefined, { onSuccess: () => setSent(true) });
+  };
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e9d9a8] bg-[#fbf3de] px-5 py-2.5 text-[12px] text-[#8a6a2a] sm:px-8" data-testid="banner-verify-email">
+      <div className="flex items-center gap-2"><AlertTriangle size={14} />Verify {email} to make sure you don't lose access to your scorecards.</div>
+      <button onClick={onResend} disabled={resendVerification.isPending || sent} className="font-semibold underline decoration-dotted hover:text-[#5c4a1c] disabled:no-underline disabled:opacity-70" data-testid="button-resend-verification">{sent ? 'Link sent — check your inbox' : resendVerification.isPending ? 'Sending…' : 'Resend verification email'}</button>
     </div>
   );
 }
@@ -1189,7 +1247,7 @@ function AuthedApp() {
 }
 
 function Router() {
-  return <Switch><Route path="/login" component={LoginPage} /><Route path="/signup" component={SignupPage} /><Route path="/forgot-password" component={ForgotPasswordPage} /><Route path="/reset-password" component={ResetPasswordPage} /><Route path="/privacy" component={PrivacyPage} /><Route path="/terms" component={TermsPage} /><Route><AuthedApp /></Route></Switch>;
+  return <Switch><Route path="/login" component={LoginPage} /><Route path="/signup" component={SignupPage} /><Route path="/forgot-password" component={ForgotPasswordPage} /><Route path="/reset-password" component={ResetPasswordPage} /><Route path="/verify-email" component={VerifyEmailPage} /><Route path="/privacy" component={PrivacyPage} /><Route path="/terms" component={TermsPage} /><Route><AuthedApp /></Route></Switch>;
 }
 
 function App() {

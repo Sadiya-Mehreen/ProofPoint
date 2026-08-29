@@ -114,6 +114,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthUser"
+  /auth/verify-email:
+    post:
+      operationId: verifyEmail
+      tags: [auth]
+      summary: Confirm an email address using the token from the verification email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailInput"
+      responses:
+        "200":
+          description: Email verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+  /auth/resend-verification:
+    post:
+      operationId: resendVerification
+      tags: [auth]
+      summary: Resend the verification email to the signed-in account
+      responses:
+        "204":
+          description: Sent (or already verified, in which case this is a no-op)
   /healthz:
     get:
       operationId: healthCheck
@@ -271,7 +297,7 @@ components:
           type: string
     AuthUser:
       type: object
-      required: [id, name, email]
+      required: [id, name, email, emailVerified]
       properties:
         id:
           type: string
@@ -279,6 +305,8 @@ components:
           type: string
         email:
           type: string
+        emailVerified:
+          type: boolean
     ForgotPasswordInput:
       type: object
       required: [email]
@@ -294,6 +322,12 @@ components:
         password:
           type: string
           minLength: 8
+    VerifyEmailInput:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
     SessionStartInput:
       type: object
       required: [candidateName, targetRole]
