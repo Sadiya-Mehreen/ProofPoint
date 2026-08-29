@@ -1,6 +1,13 @@
-"""Fetches and normalizes a candidate's public GitHub footprint via the unauthenticated REST API."""
+"""Fetches and normalizes a candidate's public GitHub footprint via the REST API.
+
+Uses an authenticated request when GITHUB_TOKEN is set (5,000 requests/hour),
+falling back to unauthenticated (60 requests/hour, shared across every caller
+on this server's IP -- easy to exhaust with just a couple of lookups, since
+each one costs 1 + 2*len(repos analyzed) calls).
+"""
 
 import logging
+import os
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -10,6 +17,14 @@ logger = logging.getLogger(__name__)
 GITHUB_API_BASE = "https://api.github.com"
 MAX_REPOS_TO_ANALYZE = 10
 REQUEST_TIMEOUT = 10.0
+
+
+def _auth_headers() -> dict:
+    headers = {"Accept": "application/vnd.github+json"}
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
 
 
 class _RateLimitedError(Exception):
@@ -81,7 +96,7 @@ def get_github_footprint(username: str) -> dict:
     try:
         with httpx.Client(
             timeout=REQUEST_TIMEOUT,
-            headers={"Accept": "application/vnd.github+json"},
+            headers=_auth_headers(),
         ) as client:
             response = client.get(
                 f"{GITHUB_API_BASE}/users/{username}/repos",

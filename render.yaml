@@ -16,6 +16,13 @@ services:
       # CrewAI/litellm read this directly; get it from console.groq.com.
       - key: GROQ_API_KEY
         sync: false
+      # Optional but recommended: a GitHub personal access token (no scopes
+      # needed, just used to authenticate) so services/github_service.py gets
+      # GitHub's 5,000 req/hour authenticated rate limit instead of the
+      # 60 req/hour unauthenticated one, which is shared across every visitor
+      # hitting this server's IP and easy to exhaust.
+      - key: GITHUB_TOKEN
+        sync: false
 
   # Node/Express auth + session + WebSocket-proxy layer the frontend talks
   # to. Owns the SQLite file for accounts and interview history, so it needs
