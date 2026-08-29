@@ -420,10 +420,13 @@ components:
           type: string
     GithubFootprint:
       type: object
-      required: [username, repositories, topLanguages, summary]
+      required: [username, found, repositories, topLanguages, summary]
       properties:
         username:
           type: string
+        found:
+          type: boolean
+          description: Whether this resolved to a real, public GitHub account.
         repositories:
           type: number
         topLanguages:
