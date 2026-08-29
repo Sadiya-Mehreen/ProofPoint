@@ -124,6 +124,8 @@ export interface CandidateProfile {
 
 export interface GithubFootprint {
   username: string;
+  /** Whether this resolved to a real, public GitHub account. */
+  found: boolean;
   repositories: number;
   topLanguages: string[];
   summary: string;

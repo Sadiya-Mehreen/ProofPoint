@@ -276,6 +276,7 @@ router.get("/github/:username", async (req, res) => {
     if (errorCode) {
       res.json({
         username: input.data.username,
+        found: false,
         repositories: 0,
         topLanguages: [],
         summary:
@@ -292,6 +293,7 @@ router.get("/github/:username", async (req, res) => {
 
     res.json({
       username: input.data.username,
+      found: true,
       repositories: totalRepositories,
       topLanguages: languages,
       summary:

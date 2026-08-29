@@ -149,6 +149,7 @@ export const GetGithubFootprintParams = zod.object({
 
 export const GetGithubFootprintResponse = zod.object({
   "username": zod.string(),
+  "found": zod.boolean().describe('Whether this resolved to a real, public GitHub account.'),
   "repositories": zod.number(),
   "topLanguages": zod.array(zod.string()),
   "summary": zod.string()
