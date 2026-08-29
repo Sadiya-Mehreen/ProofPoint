@@ -21,6 +21,7 @@ import {
   releaseSession,
 } from "../lib/session-ownership";
 import { getPreviousTopicsForUser, saveInterview } from "../lib/interview-history-store";
+import { sessionStartRateLimit } from "../middlewares/rate-limit";
 
 const router: IRouter = Router();
 const upload = multer({
@@ -121,7 +122,7 @@ function handleBackendError(err: unknown, res: import("express").Response, notFo
   throw err;
 }
 
-router.post("/session/start", async (req, res) => {
+router.post("/session/start", sessionStartRateLimit, async (req, res) => {
   const input = StartSessionBody.safeParse(req.body);
   if (!input.success) {
     res.status(400).json({ error: "Please provide a candidate name and target role." });

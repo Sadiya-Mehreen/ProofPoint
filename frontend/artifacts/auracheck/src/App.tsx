@@ -45,6 +45,7 @@ import {
   getInterview,
   getListInterviewsQueryKey,
   useEndSession,
+  useForgotPassword,
   useGetCurrentUser,
   useGetGithubFootprint,
   useGetInterview,
@@ -52,13 +53,14 @@ import {
   useListInterviews,
   useLogin,
   useLogout,
+  useResetPassword,
   useSignup,
   useStartSession,
   useUploadResume,
 } from '@workspace/api-client-react';
 import type { AuthUser, InterviewDetail, InterviewSummary } from '@workspace/api-client-react';
 import { jsPDF } from 'jspdf';
-import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
+import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams, useSearch } from 'wouter';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -162,12 +164,47 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function AuthMarketingPanel() {
+  return (
+    <div className="relative hidden overflow-hidden rounded-[25px] bg-[#202031] p-10 text-[#f5f1e9] lg:flex lg:flex-col lg:justify-between">
+      <div className="relative z-10">
+        <Logo theme="dark" />
+        <h2 className="font-display mt-10 text-[32px] leading-[1.15] tracking-[-.02em]">Talk to the panel.<br />Get called on the <em className="text-[#b39ccb]">gaps</em>.</h2>
+        <p className="mt-4 max-w-[360px] text-[13px] leading-6 text-[#c8c3d6]">Five AI interviewers grill you live, then check it against your real GitHub activity and resume — not just your talk track.</p>
+      </div>
+      <div className="relative z-10 mt-10 space-y-2.5">
+        {PANEL_ROSTER.map((agent) => (
+          <div key={agent.name} className="flex items-center gap-3 rounded-xl border border-[#3c3b50] bg-[#29293c]/70 px-3.5 py-2.5">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-semibold" style={{ backgroundColor: `${agent.color}2a`, color: agent.color }}>{agent.name[0]}</div>
+            <div className="text-[12px]"><span className="font-semibold text-[#ece8e0]">{agent.name}</span><span className="ml-1.5 text-[#9799aa]">{agent.role}</span></div>
+          </div>
+        ))}
+      </div>
+      <div className="relative z-10 mt-8 flex items-center gap-2 border-t border-[#39394c] pt-6 text-[11px] text-[#9799aa]"><ShieldCheck size={14} className="text-[#9ccfc0]" /> Your resume and GitHub handle are only used to make your coaching more honest — see our <Link href="/privacy" className="ml-1 underline hover:text-[#f5f1e9]">privacy policy</Link>.</div>
+    </div>
+  );
+}
+
+function AuthFooterLinks() {
+  return (
+    <div className="mt-6 flex items-center justify-center gap-4 text-[10px] text-[#a79f92]">
+      <Link href="/privacy" className="hover:text-[#8e888d] hover:underline">Privacy</Link>
+      <span className="text-[#d8d0c3]">·</span>
+      <Link href="/terms" className="hover:text-[#8e888d] hover:underline">Terms</Link>
+    </div>
+  );
+}
+
 function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-[#f5f1e9] px-5 py-12">
-      <div className="w-full max-w-[420px]">
-        <div className="mb-8 flex justify-center"><Logo theme="light" /></div>
-        <div className="rounded-[25px] border border-[#e4ddd3] bg-[#fbf8f2] p-8 shadow-[0_16px_45px_rgba(44,40,56,.06)]">{children}</div>
+      <div className="grid w-full max-w-[900px] items-stretch gap-5 lg:grid-cols-2">
+        <AuthMarketingPanel />
+        <div className="w-full">
+          <div className="mb-8 flex justify-center lg:hidden"><Logo theme="light" /></div>
+          <div className="rounded-[25px] border border-[#e4ddd3] bg-[#fbf8f2] p-8 shadow-[0_16px_45px_rgba(44,40,56,.06)]">{children}</div>
+          <AuthFooterLinks />
+        </div>
       </div>
     </div>
   );
@@ -243,12 +280,186 @@ function LoginPage() {
       <p className="mt-2 text-[13px] leading-6 text-[#77727d]">Sign in to get back in the room.</p>
       <Form {...form}><form onSubmit={form.handleSubmit(onSubmit)} className="mt-7 space-y-4">
         <label className="block"><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Email</span><div className="relative"><Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#958c99]" /><input type="email" {...form.register('email', { required: true })} className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] py-3.5 pl-11 pr-4 text-[13px] outline-none transition-colors focus:border-[#8d67ae] focus:ring-2 focus:ring-[#8d67ae]/10" data-testid="input-login-email" /></div></label>
-        <label className="block"><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Password</span><div className="relative"><LockKeyhole size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#958c99]" /><input type="password" {...form.register('password', { required: true })} className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] py-3.5 pl-11 pr-4 text-[13px] outline-none transition-colors focus:border-[#8d67ae] focus:ring-2 focus:ring-[#8d67ae]/10" data-testid="input-login-password" /></div></label>
+        <label className="block"><div className="mb-2 flex items-center justify-between"><span className="text-[11px] font-semibold text-[#625e69]">Password</span><Link href="/forgot-password" className="text-[11px] font-medium text-[#8d67ae] hover:underline" data-testid="link-forgot-password">Forgot password?</Link></div><div className="relative"><LockKeyhole size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#958c99]" /><input type="password" {...form.register('password', { required: true })} className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] py-3.5 pl-11 pr-4 text-[13px] outline-none transition-colors focus:border-[#8d67ae] focus:ring-2 focus:ring-[#8d67ae]/10" data-testid="input-login-password" /></div></label>
         <button type="submit" disabled={login.isPending} className="flex w-full items-center justify-center gap-2 rounded-full bg-[#2d4540] px-5 py-3.5 text-[12px] font-semibold text-[#f2f7f3] transition-all hover:-translate-y-0.5 hover:bg-[#426b5d] disabled:cursor-wait disabled:opacity-70" data-testid="button-login-submit">{login.isPending ? <LoaderCircle size={16} className="animate-spin" /> : null} Sign in</button>
         {error && <p className="text-center text-[11px] leading-5 text-[#a35a5a]" data-testid="text-login-error">{error}</p>}
       </form></Form>
       <p className="mt-6 text-center text-[12px] text-[#8e888d]">New to AuraCheck? <Link href="/signup" className="font-semibold text-[#8d67ae] hover:underline" data-testid="link-go-signup">Create an account</Link></p>
     </AuthLayout>
+  );
+}
+
+type ForgotPasswordValues = { email: string };
+
+function ForgotPasswordPage() {
+  const { user, isLoading } = useAuth();
+  const forgotPassword = useForgotPassword();
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+  const form = useForm<ForgotPasswordValues>({ defaultValues: { email: '' } });
+
+  if (!isLoading && user) return <Redirect to="/" />;
+
+  const onSubmit = async (values: ForgotPasswordValues) => {
+    setError(null);
+    try {
+      await forgotPassword.mutateAsync({ data: values });
+      setSent(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not reach AuraCheck. Please try again.');
+    }
+  };
+
+  if (sent) {
+    return (
+      <AuthLayout>
+        <SectionLabel>Check your inbox</SectionLabel>
+        <h1 className="font-display text-[32px] leading-tight tracking-[-.03em] text-[#262536]">Almost there.</h1>
+        <p className="mt-3 text-[13px] leading-6 text-[#77727d]">If an account exists for that email, a reset link is on its way. It expires in an hour.</p>
+        <p className="mt-6 text-center text-[12px] text-[#8e888d]"><Link href="/login" className="font-semibold text-[#8d67ae] hover:underline" data-testid="link-back-to-login">Back to sign in</Link></p>
+      </AuthLayout>
+    );
+  }
+
+  return (
+    <AuthLayout>
+      <SectionLabel>Reset your password</SectionLabel>
+      <h1 className="font-display text-[32px] leading-tight tracking-[-.03em] text-[#262536]">Forgot something?</h1>
+      <p className="mt-2 text-[13px] leading-6 text-[#77727d]">Tell us your email and we'll send a link to set a new password.</p>
+      <Form {...form}><form onSubmit={form.handleSubmit(onSubmit)} className="mt-7 space-y-4">
+        <label className="block"><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Email</span><div className="relative"><Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#958c99]" /><input type="email" {...form.register('email', { required: true })} className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] py-3.5 pl-11 pr-4 text-[13px] outline-none transition-colors focus:border-[#8d67ae] focus:ring-2 focus:ring-[#8d67ae]/10" data-testid="input-forgot-email" /></div></label>
+        <button type="submit" disabled={forgotPassword.isPending} className="flex w-full items-center justify-center gap-2 rounded-full bg-[#2d4540] px-5 py-3.5 text-[12px] font-semibold text-[#f2f7f3] transition-all hover:-translate-y-0.5 hover:bg-[#426b5d] disabled:cursor-wait disabled:opacity-70" data-testid="button-forgot-submit">{forgotPassword.isPending ? <LoaderCircle size={16} className="animate-spin" /> : null} Send reset link</button>
+        {error && <p className="text-center text-[11px] leading-5 text-[#a35a5a]" data-testid="text-forgot-error">{error}</p>}
+      </form></Form>
+      <p className="mt-6 text-center text-[12px] text-[#8e888d]"><Link href="/login" className="font-semibold text-[#8d67ae] hover:underline" data-testid="link-back-to-login">Back to sign in</Link></p>
+    </AuthLayout>
+  );
+}
+
+type ResetPasswordValues = { password: string };
+
+function ResetPasswordPage() {
+  const { user, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+  const search = useSearch();
+  const token = new URLSearchParams(search).get('token') || '';
+  const resetPassword = useResetPassword();
+  const [error, setError] = useState<string | null>(null);
+  const form = useForm<ResetPasswordValues>({ defaultValues: { password: '' } });
+
+  if (!isLoading && user) return <Redirect to="/" />;
+
+  const onSubmit = async (values: ResetPasswordValues) => {
+    setError(null);
+    try {
+      const signedIn = await resetPassword.mutateAsync({ data: { token, password: values.password } });
+      queryClient.setQueryData(getGetCurrentUserQueryKey(), signedIn);
+      setLocation('/');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not reach AuraCheck. Please try again.');
+    }
+  };
+
+  if (!token) {
+    return (
+      <AuthLayout>
+        <SectionLabel>Reset your password</SectionLabel>
+        <h1 className="font-display text-[32px] leading-tight tracking-[-.03em] text-[#262536]">Link missing.</h1>
+        <p className="mt-3 text-[13px] leading-6 text-[#77727d]">This page needs the link from your reset email. Request a new one below.</p>
+        <p className="mt-6 text-center text-[12px] text-[#8e888d]"><Link href="/forgot-password" className="font-semibold text-[#8d67ae] hover:underline">Request a reset link</Link></p>
+      </AuthLayout>
+    );
+  }
+
+  return (
+    <AuthLayout>
+      <SectionLabel>Reset your password</SectionLabel>
+      <h1 className="font-display text-[32px] leading-tight tracking-[-.03em] text-[#262536]">Choose a new password.</h1>
+      <p className="mt-2 text-[13px] leading-6 text-[#77727d]">This signs you out everywhere else, for safety.</p>
+      <Form {...form}><form onSubmit={form.handleSubmit(onSubmit)} className="mt-7 space-y-4">
+        <label className="block"><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">New password</span><div className="relative"><LockKeyhole size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#958c99]" /><input type="password" {...form.register('password', { required: true, minLength: 8 })} className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] py-3.5 pl-11 pr-4 text-[13px] outline-none transition-colors focus:border-[#8d67ae] focus:ring-2 focus:ring-[#8d67ae]/10" data-testid="input-reset-password" /></div><span className="mt-1.5 block text-[10px] text-[#94849d]">At least 8 characters.</span></label>
+        <button type="submit" disabled={resetPassword.isPending} className="flex w-full items-center justify-center gap-2 rounded-full bg-[#2d4540] px-5 py-3.5 text-[12px] font-semibold text-[#f2f7f3] transition-all hover:-translate-y-0.5 hover:bg-[#426b5d] disabled:cursor-wait disabled:opacity-70" data-testid="button-reset-submit">{resetPassword.isPending ? <LoaderCircle size={16} className="animate-spin" /> : null} Set new password</button>
+        {error && <p className="text-center text-[11px] leading-5 text-[#a35a5a]" data-testid="text-reset-error">{error}</p>}
+      </form></Form>
+    </AuthLayout>
+  );
+}
+
+function LegalLayout({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="min-h-[100dvh] bg-[#f5f1e9] px-5 py-10 text-[#272638] sm:px-8">
+      <div className="mx-auto max-w-[720px]">
+        <Link href="/login" className="inline-flex"><Logo theme="light" /></Link>
+        <h1 className="font-display mt-10 text-[36px] leading-tight tracking-[-.03em]">{title}</h1>
+        <p className="mt-1 text-[11px] uppercase tracking-[.15em] text-[#a79f92]">Last updated August 2026</p>
+        <div className="mt-8 space-y-6 rounded-[25px] border border-[#e4ddd3] bg-[#fbf8f2] p-8 text-[13px] leading-7 text-[#4c4855] sm:p-10 [&_h2]:font-display [&_h2]:mt-2 [&_h2]:text-[19px] [&_h2]:text-[#262536] [&_h2]:tracking-[-.01em] [&_p]:mt-2 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-1 [&_a]:text-[#8d67ae] [&_a]:underline">
+          {children}
+        </div>
+        <p className="mt-6 text-center text-[12px] text-[#8e888d]"><Link href="/login" className="font-semibold text-[#8d67ae] hover:underline">Back to AuraCheck</Link></p>
+      </div>
+    </div>
+  );
+}
+
+function PrivacyPage() {
+  return (
+    <LegalLayout title="Privacy Policy">
+      <p>AuraCheck is a practice tool: you talk to five AI interviewer personas, and we check what you say against your resume and public GitHub activity to give you an honest scorecard. This page explains what we collect to do that and where it goes.</p>
+      <h2>What we collect</h2>
+      <ul>
+        <li>Account info: your name, email, and a hashed password.</li>
+        <li>What you submit for a session: your target role, an optional resume file (we extract the text and discard the file), and an optional GitHub username.</li>
+        <li>What you say: your spoken answers are transcribed to text in your browser and sent to our AI panel to generate follow-up questions and a final scorecard.</li>
+        <li>Your public GitHub footprint: if you provide a GitHub username, we read your public repositories, languages, and commit counts from GitHub's public API. We never ask for GitHub credentials or access private repos.</li>
+        <li>Basic usage data: sign-in timestamps and session history, so your past scorecards are there when you come back.</li>
+      </ul>
+      <h2>Who else sees it</h2>
+      <ul>
+        <li><strong>Groq</strong> processes your resume text and interview responses to run the AI panel. See <a href="https://groq.com/privacy-policy/" target="_blank" rel="noreferrer">Groq's privacy policy</a>.</li>
+        <li><strong>GitHub's public API</strong> is queried with the username you provide, the same way any visitor to your public profile could.</li>
+        <li><strong>Resend</strong> sends password-reset emails when you ask for one.</li>
+        <li>We don't sell your data, and we don't share it with anyone else.</li>
+      </ul>
+      <h2>How long we keep it</h2>
+      <p>Your account, session history, and scorecards are kept until you delete your account. Uploaded resume files are discarded immediately after we extract the text — we don't keep the original file.</p>
+      <h2>Your choices</h2>
+      <p>Email us to delete your account and everything tied to it, correct inaccurate account info, or ask any question about this policy.</p>
+      <h2>Cookies</h2>
+      <p>We use one cookie to keep you signed in. No advertising or tracking cookies.</p>
+      <h2>Changes</h2>
+      <p>If this policy changes materially, we'll update the date above and let signed-in users know.</p>
+      <h2>Contact</h2>
+      <p>Questions or requests: <a href="mailto:support@auracheck.me">support@auracheck.me</a></p>
+    </LegalLayout>
+  );
+}
+
+function TermsPage() {
+  return (
+    <LegalLayout title="Terms of Service">
+      <p>AuraCheck is a practice and coaching tool. By creating an account, you agree to the following.</p>
+      <h2>What AuraCheck is (and isn't)</h2>
+      <p>AuraCheck simulates an interview panel and gives you feedback for practice purposes. It is not a certification, employer, or recruiter, and a scorecard is not a guarantee of how any real interview will go.</p>
+      <h2>Your account</h2>
+      <p>You're responsible for the accuracy of what you submit and for keeping your password secure. You must be old enough to form a binding agreement in your country to create an account.</p>
+      <h2>Acceptable use</h2>
+      <ul>
+        <li>Don't use automated tools to create accounts or run sessions in bulk.</li>
+        <li>Don't submit anyone else's resume, GitHub username, or personal information without their permission.</li>
+        <li>Don't attempt to interfere with, overload, or reverse-engineer the service.</li>
+      </ul>
+      <h2>AI-generated content</h2>
+      <p>Interview questions, scores, and feedback are generated by AI models and can be wrong, incomplete, or miss context. Use your own judgment — don't treat a scorecard as professional, legal, or career advice.</p>
+      <h2>Availability</h2>
+      <p>This is an early-stage product. Features, limits, and availability may change, and we may need to take the service down for maintenance without notice.</p>
+      <h2>Termination</h2>
+      <p>You can delete your account at any time by contacting us. We may suspend accounts that violate these terms or abuse the service (for example, to protect against automated abuse of our AI provider quotas).</p>
+      <h2>Changes</h2>
+      <p>We may update these terms as the product evolves. Continuing to use AuraCheck after an update means you accept the revised terms.</p>
+      <h2>Contact</h2>
+      <p>Questions: <a href="mailto:support@auracheck.me">support@auracheck.me</a></p>
+    </LegalLayout>
   );
 }
 
@@ -965,7 +1176,7 @@ function SettingsPage() {
   const [evidence, setEvidence] = useState(true);
   const [name, setName] = useState(user?.name || '');
   const save = () => { setSaved(true); window.setTimeout(() => setSaved(false), 2200); };
-  return <div className="page-enter mx-auto max-w-[920px] px-5 py-8 sm:px-8 sm:py-12"><div className="mb-10"><SectionLabel>Room settings</SectionLabel><h1 className="font-display text-[clamp(42px,6vw,65px)] leading-[.95] tracking-[-.04em]">Make it feel<br /><em className="text-[#8d67ae]">like you.</em></h1><p className="mt-5 text-[14px] leading-7 text-[#77727d]">Your profile shapes the questions. Your preferences shape the quiet around them.</p></div><div className="space-y-5"><section className="rounded-[24px] border border-[#e4ddd3] bg-[#fbf8f2] p-6 sm:p-8"><div className="mb-7"><h2 className="font-display text-[29px]">Candidate profile</h2><p className="mt-1 text-[12px] text-[#8e888d]">This is the context your panel carries into each room.</p></div><div className="grid gap-5 sm:grid-cols-2"><label><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Name</span><input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] px-4 py-3.5 text-[13px] outline-none focus:border-[#8d67ae]" data-testid="input-settings-name" /></label><label><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Headline</span><input defaultValue="Frontend engineer · builder of useful things" className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] px-4 py-3.5 text-[13px] outline-none focus:border-[#8d67ae]" data-testid="input-settings-headline" /></label></div></section><section className="rounded-[24px] border border-[#e4ddd3] bg-[#fbf8f2] p-6 sm:p-8"><div className="mb-5"><h2 className="font-display text-[29px]">Room preferences</h2><p className="mt-1 text-[12px] text-[#8e888d]">Small choices that make practice easier to return to.</p></div><div className="divide-y divide-[#ebe4db]"><SettingRow icon={<Bell size={17} />} title="Gentle reminders" description="A nudge when it’s a good time to practice" checked={notifications} onChange={() => setNotifications(!notifications)} testId="switch-notifications" /><SettingRow icon={<ShieldCheck size={17} />} title="Show evidence prompts" description="Let the panel point to proof from your footprint" checked={evidence} onChange={() => setEvidence(!evidence)} testId="switch-evidence" /><SettingRow icon={<Volume2 size={17} />} title="Voice feedback" description="Read prompts and coaching notes aloud" checked={false} onChange={() => undefined} testId="switch-voice" /></div></section><div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center"><div className="flex items-center gap-2 text-[11px] text-[#8e888d]"><LockKeyhole size={14} className="text-[#8d67ae]" /> Your profile is only used to improve your rooms.</div><button onClick={save} className="flex items-center gap-2 rounded-full bg-[#2b2a3b] px-6 py-3.5 text-[12px] font-semibold text-[#faf6ee] transition-all hover:bg-[#8d67ae]" data-testid="button-save-settings">{saved ? <Check size={15} /> : null}{saved ? 'Saved' : 'Save changes'}</button></div></div></div>;
+  return <div className="page-enter mx-auto max-w-[920px] px-5 py-8 sm:px-8 sm:py-12"><div className="mb-10"><SectionLabel>Room settings</SectionLabel><h1 className="font-display text-[clamp(42px,6vw,65px)] leading-[.95] tracking-[-.04em]">Make it feel<br /><em className="text-[#8d67ae]">like you.</em></h1><p className="mt-5 text-[14px] leading-7 text-[#77727d]">Your profile shapes the questions. Your preferences shape the quiet around them.</p></div><div className="space-y-5"><section className="rounded-[24px] border border-[#e4ddd3] bg-[#fbf8f2] p-6 sm:p-8"><div className="mb-7"><h2 className="font-display text-[29px]">Candidate profile</h2><p className="mt-1 text-[12px] text-[#8e888d]">This is the context your panel carries into each room.</p></div><div className="grid gap-5 sm:grid-cols-2"><label><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Name</span><input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] px-4 py-3.5 text-[13px] outline-none focus:border-[#8d67ae]" data-testid="input-settings-name" /></label><label><span className="mb-2 block text-[11px] font-semibold text-[#625e69]">Headline</span><input defaultValue="Frontend engineer · builder of useful things" className="w-full rounded-xl border border-[#ded7ce] bg-[#f7f3ec] px-4 py-3.5 text-[13px] outline-none focus:border-[#8d67ae]" data-testid="input-settings-headline" /></label></div></section><section className="rounded-[24px] border border-[#e4ddd3] bg-[#fbf8f2] p-6 sm:p-8"><div className="mb-5"><h2 className="font-display text-[29px]">Room preferences</h2><p className="mt-1 text-[12px] text-[#8e888d]">Small choices that make practice easier to return to.</p></div><div className="divide-y divide-[#ebe4db]"><SettingRow icon={<Bell size={17} />} title="Gentle reminders" description="A nudge when it’s a good time to practice" checked={notifications} onChange={() => setNotifications(!notifications)} testId="switch-notifications" /><SettingRow icon={<ShieldCheck size={17} />} title="Show evidence prompts" description="Let the panel point to proof from your footprint" checked={evidence} onChange={() => setEvidence(!evidence)} testId="switch-evidence" /><SettingRow icon={<Volume2 size={17} />} title="Voice feedback" description="Read prompts and coaching notes aloud" checked={false} onChange={() => undefined} testId="switch-voice" /></div></section><div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center"><div><div className="flex items-center gap-2 text-[11px] text-[#8e888d]"><LockKeyhole size={14} className="text-[#8d67ae]" /> Your profile is only used to improve your rooms.</div><div className="mt-2 flex items-center gap-3 pl-5.5 text-[10px] text-[#a79f92]"><Link href="/privacy" className="hover:text-[#8e888d] hover:underline">Privacy policy</Link><span className="text-[#d8d0c3]">·</span><Link href="/terms" className="hover:text-[#8e888d] hover:underline">Terms of service</Link></div></div><button onClick={save} className="flex items-center gap-2 rounded-full bg-[#2b2a3b] px-6 py-3.5 text-[12px] font-semibold text-[#faf6ee] transition-all hover:bg-[#8d67ae]" data-testid="button-save-settings">{saved ? <Check size={15} /> : null}{saved ? 'Saved' : 'Save changes'}</button></div></div></div>;
 }
 
 function SettingRow({ icon, title, description, checked, onChange, testId }: { icon: ReactNode; title: string; description: string; checked: boolean; onChange: () => void; testId: string }) {
@@ -978,7 +1189,7 @@ function AuthedApp() {
 }
 
 function Router() {
-  return <Switch><Route path="/login" component={LoginPage} /><Route path="/signup" component={SignupPage} /><Route><AuthedApp /></Route></Switch>;
+  return <Switch><Route path="/login" component={LoginPage} /><Route path="/signup" component={SignupPage} /><Route path="/forgot-password" component={ForgotPasswordPage} /><Route path="/reset-password" component={ResetPasswordPage} /><Route path="/privacy" component={PrivacyPage} /><Route path="/terms" component={TermsPage} /><Route><AuthedApp /></Route></Switch>;
 }
 
 function App() {

@@ -77,6 +77,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthUser"
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Request a password reset link
+      description: >-
+        Always responds 204, whether or not the email matches an account, so
+        this can't be used to enumerate registered emails. If it does match,
+        a reset link is emailed to it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordInput"
+      responses:
+        "204":
+          description: Request accepted
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Set a new password using a reset token
+      description: Consumes the single-use token from the reset email and signs the caller in.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordInput"
+      responses:
+        "200":
+          description: Password updated and signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
   /healthz:
     get:
       operationId: healthCheck
@@ -242,6 +279,21 @@ components:
           type: string
         email:
           type: string
+    ForgotPasswordInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+    ResetPasswordInput:
+      type: object
+      required: [token, password]
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+          minLength: 8
     SessionStartInput:
       type: object
       required: [candidateName, targetRole]
