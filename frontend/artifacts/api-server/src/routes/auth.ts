@@ -1,19 +1,28 @@
 import { Router, type IRouter } from "express";
-import { LoginBody, SignupBody } from "@workspace/api-zod";
+import { ForgotPasswordBody, LoginBody, ResetPasswordBody, SignupBody } from "@workspace/api-zod";
 import {
+ consumePasswordResetToken,
+ createPasswordResetToken,
  createSession,
  createUser,
+ deleteAllSessionsForUser,
  deleteSession,
  findUserByEmail,
+ findUserById,
  updateLastLogin,
+ updatePasswordHash,
 } from "../lib/auth-store";
+import { sendPasswordResetEmail } from "../lib/email";
+import { frontendOrigin } from "../lib/frontend-origin";
 import { hashPassword, verifyPassword } from "../lib/password";
 import { clearSessionCookie, setSessionCookie, SESSION_COOKIE_NAME } from "../lib/session-cookie";
 import { requireAuth } from "../middlewares/require-auth";
+import { authRateLimit } from "../middlewares/rate-limit";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
-router.post("/auth/signup", async (req, res) => {
+router.post("/auth/signup", authRateLimit, async (req, res) => {
   const input = SignupBody.safeParse(req.body);
   if (!input.success) {
     res.status(400).json({ error: "Please provide your name, a valid email, and a password of at least 8 characters." });
@@ -34,7 +43,7 @@ router.post("/auth/signup", async (req, res) => {
   res.json(user);
 });
 
-router.post("/auth/login", async (req, res) => {
+router.post("/auth/login", authRateLimit, async (req, res) => {
   const input = LoginBody.safeParse(req.body);
   if (!input.success) {
     res.status(400).json({ error: "Please provide your email and password." });
@@ -68,6 +77,61 @@ router.post("/auth/logout", (req, res) => {
 
 router.get("/auth/me", requireAuth, (req, res) => {
   res.json(req.user);
+});
+
+router.post("/auth/forgot-password", authRateLimit, async (req, res) => {
+  const input = ForgotPasswordBody.safeParse(req.body);
+  if (!input.success) {
+    res.status(400).json({ error: "Please provide a valid email." });
+    return;
+  }
+
+  const email = input.data.email.trim().toLowerCase();
+  const record = findUserByEmail(email);
+
+  // Always respond the same way whether or not the account exists, so this
+  // endpoint can't be used to check which emails have accounts.
+  if (record) {
+    const { token } = createPasswordResetToken(record.id);
+    const resetUrl = `${frontendOrigin}/reset-password?token=${token}`;
+    try {
+      await sendPasswordResetEmail(record.email, resetUrl);
+    } catch (err) {
+      logger.error({ err }, "Failed to send password reset email");
+    }
+  }
+
+  res.status(204).end();
+});
+
+router.post("/auth/reset-password", authRateLimit, async (req, res) => {
+  const input = ResetPasswordBody.safeParse(req.body);
+  if (!input.success) {
+    res.status(400).json({ error: "Please provide a valid reset token and a password of at least 8 characters." });
+    return;
+  }
+
+  const userId = consumePasswordResetToken(input.data.token);
+  if (!userId) {
+    res.status(400).json({ error: "This reset link is invalid or has expired. Please request a new one." });
+    return;
+  }
+
+  const user = findUserById(userId);
+  if (!user) {
+    res.status(400).json({ error: "This reset link is invalid or has expired. Please request a new one." });
+    return;
+  }
+
+  const passwordHash = await hashPassword(input.data.password);
+  updatePasswordHash(userId, passwordHash);
+  // A password reset is a good signal to invalidate every other session too
+  // (e.g. one on a device that no longer should have access).
+  deleteAllSessionsForUser(userId);
+
+  const { token, expiresAt } = createSession(userId);
+  setSessionCookie(res, token, expiresAt);
+  res.json(user);
 });
 
 export default router;

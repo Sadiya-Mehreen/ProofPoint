@@ -28,6 +28,16 @@ export interface AuthUser {
   email: string;
 }
 
+export interface ForgotPasswordInput {
+  email: string;
+}
+
+export interface ResetPasswordInput {
+  token: string;
+  /** @minLength 8 */
+  password: string;
+}
+
 export interface SessionStartInput {
   candidateName: string;
   targetRole: string;

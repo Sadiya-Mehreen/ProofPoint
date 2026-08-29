@@ -65,6 +65,37 @@ export const GetCurrentUserResponse = zod.object({
 
 
 /**
+ * Always responds 204, whether or not the email matches an account, so this can't be used to enumerate registered emails. If it does match, a reset link is emailed to it.
+ * @summary Request a password reset link
+ */
+export const ForgotPasswordBody = zod.object({
+  "email": zod.string()
+})
+
+export const ForgotPasswordResponse = zod.void()
+
+
+/**
+ * Consumes the single-use token from the reset email and signs the caller in.
+ * @summary Set a new password using a reset token
+ */
+export const resetPasswordBodyPasswordMin = 8;
+
+
+
+export const ResetPasswordBody = zod.object({
+  "token": zod.string(),
+  "password": zod.string().min(resetPasswordBodyPasswordMin)
+})
+
+export const ResetPasswordResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string()
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */

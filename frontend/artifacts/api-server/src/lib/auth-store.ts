@@ -16,6 +16,12 @@ db.exec(`
     user_id TEXT NOT NULL REFERENCES users(id),
     expires_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    expires_at TEXT NOT NULL
+  );
 `);
 
 // Safe migration for databases created before last_login was added.
@@ -96,4 +102,45 @@ export function findUserBySessionToken(token: string): User | undefined {
 
 export function deleteSession(token: string): void {
   db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
+}
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+
+export function createPasswordResetToken(userId: string): { token: string; expiresAt: Date } {
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+
+  // A user can only have one live reset link at a time -- older ones (e.g.
+  // from a previous "forgot password" click) stop working once a new one
+  // is requested.
+  db.prepare("DELETE FROM password_reset_tokens WHERE user_id = ?").run(userId);
+  db.prepare(
+    "INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES (?, ?, ?)",
+  ).run(token, userId, expiresAt.toISOString());
+
+  return { token, expiresAt };
+}
+
+export function consumePasswordResetToken(token: string): string | undefined {
+  const row = db
+    .prepare("SELECT user_id, expires_at FROM password_reset_tokens WHERE token = ?")
+    .get(token) as { user_id: string; expires_at: string } | undefined;
+
+  if (!row) return undefined;
+
+  db.prepare("DELETE FROM password_reset_tokens WHERE token = ?").run(token);
+
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    return undefined;
+  }
+
+  return row.user_id;
+}
+
+export function updatePasswordHash(userId: string, passwordHash: string): void {
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, userId);
+}
+
+export function deleteAllSessionsForUser(userId: string): void {
+  db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
 }
