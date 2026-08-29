@@ -26,7 +26,8 @@ export const SignupBody = zod.object({
 export const SignupResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
-  "email": zod.string()
+  "email": zod.string(),
+  "emailVerified": zod.boolean()
 })
 
 
@@ -42,7 +43,8 @@ export const LoginBody = zod.object({
 export const LoginResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
-  "email": zod.string()
+  "email": zod.string(),
+  "emailVerified": zod.boolean()
 })
 
 
@@ -60,7 +62,8 @@ export const LogoutResponse = zod.void()
 export const GetCurrentUserResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
-  "email": zod.string()
+  "email": zod.string(),
+  "emailVerified": zod.boolean()
 })
 
 
@@ -91,8 +94,30 @@ export const ResetPasswordBody = zod.object({
 export const ResetPasswordResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
-  "email": zod.string()
+  "email": zod.string(),
+  "emailVerified": zod.boolean()
 })
+
+
+/**
+ * @summary Confirm an email address using the token from the verification email
+ */
+export const VerifyEmailBody = zod.object({
+  "token": zod.string()
+})
+
+export const VerifyEmailResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "emailVerified": zod.boolean()
+})
+
+
+/**
+ * @summary Resend the verification email to the signed-in account
+ */
+export const ResendVerificationResponse = zod.void()
 
 
 /**

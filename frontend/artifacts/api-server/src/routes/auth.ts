@@ -1,7 +1,9 @@
 import { Router, type IRouter } from "express";
-import { ForgotPasswordBody, LoginBody, ResetPasswordBody, SignupBody } from "@workspace/api-zod";
+import { ForgotPasswordBody, LoginBody, ResetPasswordBody, SignupBody, VerifyEmailBody } from "@workspace/api-zod";
 import {
+ consumeEmailVerificationToken,
  consumePasswordResetToken,
+ createEmailVerificationToken,
  createPasswordResetToken,
  createSession,
  createUser,
@@ -9,16 +11,28 @@ import {
  deleteSession,
  findUserByEmail,
  findUserById,
+ markEmailVerified,
+ toUser,
  updateLastLogin,
  updatePasswordHash,
 } from "../lib/auth-store";
-import { sendPasswordResetEmail } from "../lib/email";
+import { sendPasswordResetEmail, sendVerificationEmail } from "../lib/email";
 import { frontendOrigin } from "../lib/frontend-origin";
 import { hashPassword, verifyPassword } from "../lib/password";
 import { clearSessionCookie, setSessionCookie, SESSION_COOKIE_NAME } from "../lib/session-cookie";
 import { requireAuth } from "../middlewares/require-auth";
 import { authRateLimit } from "../middlewares/rate-limit";
 import { logger } from "../lib/logger";
+
+async function sendVerificationEmailFor(userId: string, email: string): Promise<void> {
+  const { token } = createEmailVerificationToken(userId);
+  const verifyUrl = `${frontendOrigin}/verify-email?token=${token}`;
+  try {
+    await sendVerificationEmail(email, verifyUrl);
+  } catch (err) {
+    logger.error({ err }, "Failed to send verification email");
+  }
+}
 
 const router: IRouter = Router();
 
@@ -38,6 +52,11 @@ router.post("/auth/signup", authRateLimit, async (req, res) => {
   const passwordHash = await hashPassword(input.data.password);
   const user = createUser(input.data.name.trim(), email, passwordHash);
   const { token, expiresAt } = createSession(user.id);
+
+  // Best-effort -- a candidate can already use the account while unverified
+  // (see the banner logic on the frontend), so a flaky email provider
+  // shouldn't block signup.
+  void sendVerificationEmailFor(user.id, user.email);
 
   setSessionCookie(res, token, expiresAt);
   res.json(user);
@@ -63,7 +82,7 @@ router.post("/auth/login", authRateLimit, async (req, res) => {
 
 const { token, expiresAt } = createSession(record.id);
 setSessionCookie(res, token, expiresAt);
-res.json({ id: record.id, name: record.name, email: record.email });
+res.json(toUser(record));
 });
 
 router.post("/auth/logout", (req, res) => {
@@ -132,6 +151,40 @@ router.post("/auth/reset-password", authRateLimit, async (req, res) => {
   const { token, expiresAt } = createSession(userId);
   setSessionCookie(res, token, expiresAt);
   res.json(user);
+});
+
+router.post("/auth/verify-email", authRateLimit, async (req, res) => {
+  const input = VerifyEmailBody.safeParse(req.body);
+  if (!input.success) {
+    res.status(400).json({ error: "Please provide a valid verification token." });
+    return;
+  }
+
+  const userId = consumeEmailVerificationToken(input.data.token);
+  if (!userId) {
+    res.status(400).json({ error: "This verification link is invalid or has expired. Please request a new one." });
+    return;
+  }
+
+  markEmailVerified(userId);
+  const user = findUserById(userId);
+  if (!user) {
+    res.status(400).json({ error: "This verification link is invalid or has expired. Please request a new one." });
+    return;
+  }
+
+  res.json(user);
+});
+
+router.post("/auth/resend-verification", requireAuth, authRateLimit, async (req, res) => {
+  const user = req.user!;
+  if (user.emailVerified) {
+    res.status(204).end();
+    return;
+  }
+
+  await sendVerificationEmailFor(user.id, user.email);
+  res.status(204).end();
 });
 
 export default router;

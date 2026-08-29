@@ -22,9 +22,15 @@ db.exec(`
     user_id TEXT NOT NULL REFERENCES users(id),
     expires_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    expires_at TEXT NOT NULL
+  );
 `);
 
-// Safe migration for databases created before last_login was added.
+// Safe migration for databases created before last_login/email_verified were added.
 const userColumns = db.prepare("PRAGMA table_info(users)").all() as Array<{
   name: string;
 }>;
@@ -32,9 +38,18 @@ const userColumns = db.prepare("PRAGMA table_info(users)").all() as Array<{
 if (!userColumns.some((column) => column.name === "last_login")) {
   db.exec("ALTER TABLE users ADD COLUMN last_login TEXT");
 }
+if (!userColumns.some((column) => column.name === "email_verified")) {
+  // Existing accounts predate this feature -- treat them as already
+  // verified rather than surprising everyone with a banner on next login.
+  db.exec("ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1");
+}
 
-export type User = { id: string; name: string; email: string };
-type UserRow = User & { password_hash: string };
+export type User = { id: string; name: string; email: string; emailVerified: boolean };
+type UserRow = Omit<User, "emailVerified"> & { password_hash: string; email_verified: number };
+
+export function toUser(row: UserRow): User {
+  return { id: row.id, name: row.name, email: row.email, emailVerified: row.email_verified === 1 };
+}
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -46,22 +61,21 @@ export function createUser(
   const id = randomUUID();
 
   db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO users (id, name, email, password_hash, created_at, email_verified) VALUES (?, ?, ?, ?, ?, 0)",
   ).run(id, name, email, passwordHash, new Date().toISOString());
 
-  return { id, name, email };
+  return { id, name, email, emailVerified: false };
 }
 
 export function findUserByEmail(email: string): UserRow | undefined {
-  return db
-    .prepare("SELECT * FROM users WHERE email = ?")
-    .get(email) as UserRow | undefined;
+  return db.prepare("SELECT * FROM users WHERE email = ?").get(email) as UserRow | undefined;
 }
 
 export function findUserById(id: string): User | undefined {
-  return db
-    .prepare("SELECT id, name, email FROM users WHERE id = ?")
-    .get(id) as User | undefined;
+  const row = db
+    .prepare("SELECT id, name, email, email_verified FROM users WHERE id = ?")
+    .get(id) as UserRow | undefined;
+  return row ? toUser(row) : undefined;
 }
 
 export function updateLastLogin(userId: string): void {
@@ -143,4 +157,38 @@ export function updatePasswordHash(userId: string, passwordHash: string): void {
 
 export function deleteAllSessionsForUser(userId: string): void {
   db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
+}
+
+const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
+export function createEmailVerificationToken(userId: string): { token: string; expiresAt: Date } {
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_TTL_MS);
+
+  db.prepare("DELETE FROM email_verification_tokens WHERE user_id = ?").run(userId);
+  db.prepare(
+    "INSERT INTO email_verification_tokens (token, user_id, expires_at) VALUES (?, ?, ?)",
+  ).run(token, userId, expiresAt.toISOString());
+
+  return { token, expiresAt };
+}
+
+export function consumeEmailVerificationToken(token: string): string | undefined {
+  const row = db
+    .prepare("SELECT user_id, expires_at FROM email_verification_tokens WHERE token = ?")
+    .get(token) as { user_id: string; expires_at: string } | undefined;
+
+  if (!row) return undefined;
+
+  db.prepare("DELETE FROM email_verification_tokens WHERE token = ?").run(token);
+
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    return undefined;
+  }
+
+  return row.user_id;
+}
+
+export function markEmailVerified(userId: string): void {
+  db.prepare("UPDATE users SET email_verified = 1 WHERE id = ?").run(userId);
 }

@@ -31,3 +31,26 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     throw new Error("email_send_failed");
   }
 }
+
+export async function sendVerificationEmail(to: string, verifyUrl: string): Promise<void> {
+  if (!resend) {
+    logger.warn({ to, verifyUrl }, "RESEND_API_KEY not set -- logging verification link instead of emailing it");
+    return;
+  }
+
+  const { error } = await resend.emails.send({
+    from: fromAddress,
+    to,
+    subject: "Verify your AuraCheck email",
+    html: `
+      <p>Welcome to AuraCheck! Confirm this is your email address to finish setting up your account.</p>
+      <p><a href="${verifyUrl}">Click here to verify your email</a>. This link expires in 24 hours.</p>
+      <p>If you didn't create this account, you can ignore this email.</p>
+    `,
+  });
+
+  if (error) {
+    logger.error({ to, error }, "Failed to send verification email via Resend");
+    throw new Error("email_send_failed");
+  }
+}

@@ -26,6 +26,7 @@ export interface AuthUser {
   id: string;
   name: string;
   email: string;
+  emailVerified: boolean;
 }
 
 export interface ForgotPasswordInput {
@@ -36,6 +37,10 @@ export interface ResetPasswordInput {
   token: string;
   /** @minLength 8 */
   password: string;
+}
+
+export interface VerifyEmailInput {
+  token: string;
 }
 
 export interface SessionStartInput {
