@@ -23,3 +23,12 @@ export const sessionStartRateLimit = rateLimit({
   keyGenerator: (req) => req.user?.id ?? req.ip ?? "unknown",
   message: { error: "You've started a lot of sessions in the last hour. Please wait a bit and try again." },
 });
+
+// Defense-in-depth against brute-forcing ADMIN_SECRET -- tight on purpose,
+// this endpoint is meant to be checked occasionally by a human, not polled.
+export const adminRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
