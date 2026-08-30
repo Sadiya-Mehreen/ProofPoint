@@ -78,6 +78,14 @@ export function findUserById(id: string): User | undefined {
   return row ? toUser(row) : undefined;
 }
 
+export function listUsers(): Array<User & { createdAt: string; lastLogin: string | null }> {
+  const rows = db
+    .prepare("SELECT id, name, email, email_verified, created_at, last_login FROM users ORDER BY created_at DESC")
+    .all() as Array<UserRow & { created_at: string; last_login: string | null }>;
+
+  return rows.map((row) => ({ ...toUser(row), createdAt: row.created_at, lastLogin: row.last_login }));
+}
+
 export function updateLastLogin(userId: string): void {
   db.prepare(
     "UPDATE users SET last_login = ? WHERE id = ?",
